@@ -1,14 +1,20 @@
 {
-  "name": "herosms-telegram-bot",
-  "version": "1.0.0",
-  "description": "HeroSMS API orqali raqam sotib oluvchi Telegram bot",
+  "name": "smmhero-bot",
+  "version": "2.0.0",
+  "description": "SMM Hero SMS Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.66.0",
-    "axios": "^1.7.7",
-    "dotenv": "^16.4.5"
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.19.0",
+    "mongoose": "^8.4.0",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
