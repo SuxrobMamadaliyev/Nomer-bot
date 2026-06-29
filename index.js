@@ -1,5 +1,5 @@
 
-# Yangi, to'liq o'zgartirilgan index.js - eski /start matnini o'zgartirish, balans so'mda
+# To'liq toza index.js faylini yarataman
 
 code = r'''/**
  * SMM Hero SMS Bot
@@ -46,7 +46,7 @@ if (!BOT_TOKEN || !API_KEY || !MONGODB_URI) {
 const app = express();
 app.get('/', (req, res) => res.send('SMM Hero Bot is running!'));
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
-app.listen(PORT, () => console.log(`🌐 Server ${PORT} portda...`));
+app.listen(PORT, () => console.log('🌐 Server ' + PORT + ' portda...'));
 
 // ========== MONGODB ==========
 const UserSchema = new mongoose.Schema({
@@ -143,8 +143,8 @@ async function getPrices(service, country) {
 async function getNumber(service, country) {
   const data = await apiRequest({ action: 'getNumber', service, country });
   if (typeof data === 'string' && data.startsWith('ACCESS_NUMBER:')) {
-    const [, id, phone] = data.split(':');
-    return { activationId: id, phoneNumber: phone };
+    const parts = data.split(':');
+    return { activationId: parts[1], phoneNumber: parts[2] };
   }
   throw new Error(data);
 }
@@ -188,8 +188,8 @@ async function getOrCreateUser(msg) {
   if (!user) {
     user = new User({
       chatId: msg.chat.id,
-      username: msg.from?.username,
-      firstName: msg.from?.first_name
+      username: msg.from ? msg.from.username : null,
+      firstName: msg.from ? msg.from.first_name : null
     });
     await user.save();
   }
@@ -217,10 +217,10 @@ async function getServicesKeyboard() {
   for (let i = 0; i < services.length; i += 2) {
     const row = [];
     const s1 = services[i];
-    row.push({ text: s1.name, callback_data: `service_${s1.code}` });
+    row.push({ text: s1.name, callback_data: 'service_' + s1.code });
     if (services[i + 1]) {
       const s2 = services[i + 1];
-      row.push({ text: s2.name, callback_data: `service_${s2.code}` });
+      row.push({ text: s2.name, callback_data: 'service_' + s2.code });
     }
     buttons.push(row);
   }
@@ -233,17 +233,17 @@ async function getCountriesKeyboard(service) {
   const { countries, services } = await loadServicesAndCountries();
   const serviceInfo = services.find(s => s.code === service);
   const countryEntries = Object.entries(countries)
-    .filter(([_, c]) => c.visible !== 0)
-    .sort((a, b) => a[1].eng.localeCompare(b[1].eng));
+    .filter(function([_, c]) { return c.visible !== 0; })
+    .sort(function(a, b) { return a[1].eng.localeCompare(b[1].eng); });
 
   const buttons = [];
   for (let i = 0; i < countryEntries.length; i += 2) {
     const row = [];
     const c1 = countryEntries[i];
-    row.push({ text: c1[1].eng, callback_data: `country_${service}_${c1[0]}` });
+    row.push({ text: c1[1].eng, callback_data: 'country_' + service + '_' + c1[0] });
     if (countryEntries[i + 1]) {
       const c2 = countryEntries[i + 1];
-      row.push({ text: c2[1].eng, callback_data: `country_${service}_${c2[0]}` });
+      row.push({ text: c2[1].eng, callback_data: 'country_' + service + '_' + c2[0] });
     }
     buttons.push(row);
   }
@@ -270,16 +270,16 @@ async function showPriceAndConfirm(chatId, messageId, service, country) {
     const sumPrice = calculatePrice(apiCostUSD);
     const user = await User.findOne({ chatId });
 
-    const text = `📱 *${serviceInfo?.name || service}* — ${countryInfo?.eng || country}\n\n` +
-      `💰 Narxi: *${formatSum(sumPrice)}*\n` +
-      `📦 Mavjud raqamlar: ${availableCount > 0 ? availableCount : 'Mavjud'}\n` +
-      `💳 Hisobingiz: ${formatSum(user?.balance || 0)}\n\n` +
-      `Raqam sotib olishni xohlaysizmi?`;
+    const text = '📱 *' + (serviceInfo ? serviceInfo.name : service) + '* — ' + (countryInfo ? countryInfo.eng : country) + '\n\n' +
+      '💰 Narxi: *' + formatSum(sumPrice) + '*\n' +
+      '📦 Mavjud raqamlar: ' + (availableCount > 0 ? availableCount : 'Mavjud') + '\n' +
+      '💳 Hisobingiz: ' + formatSum(user ? user.balance : 0) + '\n\n' +
+      'Raqam sotib olishni xohlaysizmi?';
 
     const keyboard = {
       inline_keyboard: [
-        [{ text: '✅ Sotib olish', callback_data: `confirm_${service}_${country}_${sumPrice}_${apiCostUSD}` }],
-        [{ text: '🔙 Orqaga', callback_data: `service_${service}` }]
+        [{ text: '✅ Sotib olish', callback_data: 'confirm_' + service + '_' + country + '_' + sumPrice + '_' + apiCostUSD }],
+        [{ text: '🔙 Orqaga', callback_data: 'service_' + service }]
       ]
     };
 
@@ -290,7 +290,7 @@ async function showPriceAndConfirm(chatId, messageId, service, country) {
       reply_markup: keyboard
     });
   } catch (e) {
-    bot.editMessageText(`❌ Xatolik: ${e.message}`, {
+    bot.editMessageText('❌ Xatolik: ' + e.message, {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [[{ text: '🔙 Orqaga', callback_data: 'buy_menu' }]] }
@@ -304,10 +304,10 @@ async function buyNumber(chatId, messageId, service, country, price, apiCostUSD)
 
   if (!user || user.balance < price) {
     bot.editMessageText(
-      `❌ *Balans yetarli emas!*\n\n` +
-      `💰 Kerak: ${formatSum(price)}\n` +
-      `💳 Hisobingiz: ${formatSum(user?.balance || 0)}\n\n` +
-      `Hisobingizni to'ldiring:`,
+      '❌ *Balans yetarli emas!*\n\n' +
+      '💰 Kerak: ' + formatSum(price) + '\n' +
+      '💳 Hisobingiz: ' + formatSum(user ? user.balance : 0) + '\n\n' +
+      'Hisobingizni to\'ldiring:',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -332,42 +332,42 @@ async function buyNumber(chatId, messageId, service, country, price, apiCostUSD)
     await user.save();
 
     const order = new Order({
-      activationId,
+      activationId: activationId,
       userId: chatId,
-      service,
-      serviceName: serviceInfo?.name || service,
-      country,
-      countryName: countryInfo?.eng || country,
-      phoneNumber,
-      price,
+      service: service,
+      serviceName: serviceInfo ? serviceInfo.name : service,
+      country: country,
+      countryName: countryInfo ? countryInfo.eng : country,
+      phoneNumber: phoneNumber,
+      price: price,
       status: 'active'
     });
     await order.save();
 
     userState[chatId] = {
-      activationId,
-      phoneNumber,
-      service,
-      country,
-      price,
-      messageId,
+      activationId: activationId,
+      phoneNumber: phoneNumber,
+      service: service,
+      country: country,
+      price: price,
+      messageId: messageId,
       startTime: Date.now()
     };
 
     bot.editMessageText(
-      `✅ *Raqam topildi!*\n\n` +
-      `📱 Servis: ${serviceInfo?.name || service}\n` +
-      `🌍 Davlat: ${countryInfo?.eng || country}\n` +
-      `📞 Raqam: \`+${phoneNumber}\`\n` +
-      `🆔 ID: \`${activationId}\`\n` +
-      `💰 Yechilgan: ${formatSum(price)}\n\n` +
-      `⏳ SMS kodini kutamiz (20 daqiqa)...`,
+      '✅ *Raqam topildi!*\n\n' +
+      '📱 Servis: ' + (serviceInfo ? serviceInfo.name : service) + '\n' +
+      '🌍 Davlat: ' + (countryInfo ? countryInfo.eng : country) + '\n' +
+      '📞 Raqam: `+' + phoneNumber + '`\n' +
+      '🆔 ID: `' + activationId + '`\n' +
+      '💰 Yechilgan: ' + formatSum(price) + '\n\n' +
+      '⏳ SMS kodini kutamiz (20 daqiqa)...',
       {
         chat_id: chatId,
         message_id: messageId,
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{ text: '🚫 Bekor qilish', callback_data: `cancel_${activationId}` }]]
+          inline_keyboard: [[{ text: '🚫 Bekor qilish', callback_data: 'cancel_' + activationId }]]
         }
       }
     );
@@ -381,7 +381,7 @@ async function buyNumber(chatId, messageId, service, country, price, apiCostUSD)
       BAD_SERVICE: 'Servis kodi noto\'g\'ri.',
       BAD_KEY: 'API kalit noto\'g\'ri.'
     };
-    bot.editMessageText(`❌ Xatolik: ${errMap[e.message] || e.message}`, {
+    bot.editMessageText('❌ Xatolik: ' + (errMap[e.message] || e.message), {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [[{ text: '🔙 Orqaga', callback_data: 'buy_menu' }]] }
@@ -405,11 +405,11 @@ function pollForCode(chatId, activationId) {
       });
       delete userState[chatId];
 
-      const order = await Order.findOne({ activationId });
+      const order = await Order.findOne({ activationId: activationId });
       if (order) {
         order.status = 'timeout';
         await order.save();
-        const user = await User.findOne({ chatId });
+        const user = await User.findOne({ chatId: chatId });
         if (user) { user.balance += order.price; await user.save(); }
       }
       return;
@@ -420,14 +420,14 @@ function pollForCode(chatId, activationId) {
 
       if (status.startsWith('STATUS_OK:')) {
         const code = status.split(':')[1];
-        await bot.sendMessage(chatId, `📩 *SMS Kod keldi!*\n\n\`${code}\``, {
+        await bot.sendMessage(chatId, '📩 *SMS Kod keldi!*\n\n`' + code + '`', {
           parse_mode: 'Markdown',
           reply_markup: {
-            inline_keyboard: [[{ text: '✅ Yakunlash', callback_data: `complete_${activationId}` }]]
+            inline_keyboard: [[{ text: '✅ Yakunlash', callback_data: 'complete_' + activationId }]]
           }
         });
 
-        const order = await Order.findOne({ activationId });
+        const order = await Order.findOne({ activationId: activationId });
         if (order) {
           order.status = 'completed';
           order.code = code;
@@ -445,7 +445,7 @@ function pollForCode(chatId, activationId) {
         });
         delete userState[chatId];
 
-        const order = await Order.findOne({ activationId });
+        const order = await Order.findOne({ activationId: activationId });
         if (order) { order.status = 'cancelled'; await order.save(); }
         return;
       }
@@ -463,16 +463,16 @@ function pollForCode(chatId, activationId) {
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   await getOrCreateUser(msg);
-  const user = await User.findOne({ chatId });
+  const user = await User.findOne({ chatId: chatId });
 
   bot.sendMessage(
     chatId,
-    `👋 *Salom!*\n\n` +
-    `📱 Bu bot orqali HeroSMS dan vaqtinchalik raqam sotib olishingiz mumkin.\n\n` +
-    `💰 *Narxlar so\'mda ko\'rsatiladi.*\n` +
-    `⏳ SMS kodini 20 daqiqa ichida qabul qilasiz.\n\n` +
-    `💳 Hisobingiz: *${formatSum(user?.balance || 0)}*\n\n` +
-    `Quyidagi tugmalardan foydalaning:`,
+    '👋 *Salom!*\n\n' +
+    '📱 Bu bot orqali HeroSMS dan vaqtinchalik raqam sotib olishingiz mumkin.\n\n' +
+    '💰 *Narxlar so\'mda ko\'rsatiladi.*\n' +
+    '⏳ SMS kodini 20 daqiqa ichida qabul qilasiz.\n\n' +
+    '💳 Hisobingiz: *' + formatSum(user ? user.balance : 0) + '*\n\n' +
+    'Quyidagi tugmalardan foydalaning:',
     {
       parse_mode: 'Markdown',
       reply_markup: await getMainKeyboard(chatId)
@@ -491,11 +491,11 @@ bot.on('callback_query', async (query) => {
 
   // Asosiy menyu
   if (data === 'main_menu') {
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ chatId: chatId });
     bot.editMessageText(
-      `🏠 *Asosiy menyu*\n\n` +
-      `💳 Hisobingiz: *${formatSum(user?.balance || 0)}*\n\n` +
-      `Quyidagi tugmalardan foydalaning:`,
+      '🏠 *Asosiy menyu*\n\n' +
+      '💳 Hisobingiz: *' + formatSum(user ? user.balance : 0) + '*\n\n' +
+      'Quyidagi tugmalardan foydalaning:',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -508,16 +508,16 @@ bot.on('callback_query', async (query) => {
 
   // Hisobim
   if (data === 'my_balance') {
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ chatId: chatId });
     const activeOrders = await Order.countDocuments({ userId: chatId, status: 'active' });
 
     bot.editMessageText(
-      `💰 *Mening hisobim*\n\n` +
-      `💳 Balans: *${formatSum(user?.balance || 0)}*\n` +
-      `📦 Jami buyurtmalar: ${user?.ordersCount || 0}\n` +
-      `🔄 Faol buyurtmalar: ${activeOrders}\n` +
-      `💸 Jami sarflangan: ${formatSum(user?.totalSpent || 0)}\n\n` +
-      `_Hisobingizni to'ldirish uchun "To'ldirish" tugmasini bosing._`,
+      '💰 *Mening hisobim*\n\n' +
+      '💳 Balans: *' + formatSum(user ? user.balance : 0) + '*\n' +
+      '📦 Jami buyurtmalar: ' + (user ? user.ordersCount : 0) + '\n' +
+      '🔄 Faol buyurtmalar: ' + activeOrders + '\n' +
+      '💸 Jami sarflangan: ' + formatSum(user ? user.totalSpent : 0) + '\n\n' +
+      '_Hisobingizni to\'ldirish uchun "To\'ldirish" tugmasini bosing._',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -536,12 +536,12 @@ bot.on('callback_query', async (query) => {
   // To'ldirish
   if (data === 'deposit') {
     bot.editMessageText(
-      `💳 *Hisobni to'ldirish*\n\n` +
-      `To'lov usulini tanlang:\n\n` +
-      `1. *Click* — +99890XXXXXXX\n` +
-      `2. *Payme* — +99890XXXXXXX\n` +
-      `3. *Kripto* — USDT TRC20\n\n` +
-      `To'lovni amalga oshirgach, chekni yuboring. Admin tekshirib, hisobingizni to'ldiradi.`,
+      '💳 *Hisobni to\'ldirish*\n\n' +
+      'To\'lov usulini tanlang:\n\n' +
+      '1. *Click* — +99890XXXXXXX\n' +
+      '2. *Payme* — +99890XXXXXXX\n' +
+      '3. *Kripto* — USDT TRC20\n\n' +
+      'To\'lovni amalga oshirgach, chekni yuboring. Admin tekshirib, hisobingizni to\'ldiradi.',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -561,9 +561,9 @@ bot.on('callback_query', async (query) => {
   if (data === 'deposit_submit') {
     userState[chatId] = { action: 'waiting_deposit_amount' };
     bot.editMessageText(
-      `💳 *Hisobni to'ldirish*\n\n` +
-      `Iltimos, to'lov summasini so'mda kiriting:\n` +
-      `(masalan: 50000)`,
+      '💳 *Hisobni to\'ldirish*\n\n' +
+      'Iltimos, to\'lov summasini so\'mda kiriting:\n' +
+      '(masalan: 50000)',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -591,10 +591,10 @@ bot.on('callback_query', async (query) => {
     let text = '📋 *Sizning buyurtmalaringiz:*\n\n';
     orders.forEach((o, i) => {
       const statusEmoji = o.status === 'completed' ? '✅' : o.status === 'active' ? '⏳' : o.status === 'cancelled' ? '🚫' : '⏰';
-      text += `${i + 1}. ${statusEmoji} ${o.serviceName} — ${o.countryName}\n`;
-      text += `   📞 +${o.phoneNumber}\n`;
-      text += `   💰 ${formatSum(o.price)}\n`;
-      if (o.code) text += `   🔑 Kod: \`${o.code}\`\n`;
+      text += (i + 1) + '. ' + statusEmoji + ' ' + o.serviceName + ' — ' + o.countryName + '\n';
+      text += '   📞 +' + o.phoneNumber + '\n';
+      text += '   💰 ' + formatSum(o.price) + '\n';
+      if (o.code) text += '   🔑 Kod: `' + o.code + '`\n';
       text += '\n';
     });
 
@@ -628,7 +628,7 @@ bot.on('callback_query', async (query) => {
     const serviceInfo = services.find(s => s.code === service);
 
     bot.editMessageText(
-      `🌍 *Davlatni tanlang:*\n\n${serviceInfo?.name || service} uchun qaysi davlatdan raqam olmoqchisiz?`,
+      '🌍 *Davlatni tanlang:*\n\n' + (serviceInfo ? serviceInfo.name : service) + ' uchun qaysi davlatdan raqam olmoqchisiz?',
       {
         chat_id: chatId,
         message_id: messageId,
@@ -664,11 +664,11 @@ bot.on('callback_query', async (query) => {
     const activationId = data.replace('cancel_', '');
     try {
       await setStatus(activationId, 8);
-      const order = await Order.findOne({ activationId });
+      const order = await Order.findOne({ activationId: activationId });
       if (order) {
         order.status = 'cancelled';
         await order.save();
-        const user = await User.findOne({ chatId });
+        const user = await User.findOne({ chatId: chatId });
         if (user) { user.balance += order.price; await user.save(); }
       }
       if (userState[chatId]) delete userState[chatId];
@@ -680,7 +680,7 @@ bot.on('callback_query', async (query) => {
         reply_markup: { inline_keyboard: [[{ text: '🔙 Asosiy menyu', callback_data: 'main_menu' }]] }
       });
     } catch (e) {
-      bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+      bot.sendMessage(chatId, '❌ Xatolik: ' + e.message);
     }
     return;
   }
@@ -697,7 +697,7 @@ bot.on('callback_query', async (query) => {
         reply_markup: { inline_keyboard: [[{ text: '🔙 Asosiy menyu', callback_data: 'main_menu' }]] }
       });
     } catch (e) {
-      bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+      bot.sendMessage(chatId, '❌ Xatolik: ' + e.message);
     }
     return;
   }
@@ -807,15 +807,15 @@ async function showAdminStats(chatId, messageId) {
     { $group: { _id: null, total: { $sum: '$amount' } } }
   ]);
 
-  const text = `🔧 *Admin Panel — Statistika*\n\n` +
-    `👥 Foydalanuvchilar: ${usersCount}\n` +
-    `📦 Jami buyurtmalar: ${totalOrders}\n` +
-    `✅ Yakunlangan: ${completedOrders}\n` +
-    `⏳ Faol: ${activeOrders}\n` +
-    `💰 Jami daromad: ${formatSum(revenue[0]?.total || 0)}\n` +
-    `💳 Jami to'lovlar: ${formatSum(totalDeposits[0]?.total || 0)}\n` +
-    `💵 Kurs: 1 USD = ${USD_RATE.toLocaleString()} so'm\n` +
-    `📊 Marja: ${PROFIT_PERCENT}%`;
+  const text = '🔧 *Admin Panel — Statistika*\n\n' +
+    '👥 Foydalanuvchilar: ' + usersCount + '\n' +
+    '📦 Jami buyurtmalar: ' + totalOrders + '\n' +
+    '✅ Yakunlangan: ' + completedOrders + '\n' +
+    '⏳ Faol: ' + activeOrders + '\n' +
+    '💰 Jami daromad: ' + formatSum(revenue[0] ? revenue[0].total : 0) + '\n' +
+    '💳 Jami to\'lovlar: ' + formatSum(totalDeposits[0] ? totalDeposits[0].total : 0) + '\n' +
+    '💵 Kurs: 1 USD = ' + USD_RATE.toLocaleString() + ' so\'m\n' +
+    '📊 Marja: ' + PROFIT_PERCENT + '%';
 
   bot.editMessageText(text, {
     chat_id: chatId,
@@ -825,22 +825,22 @@ async function showAdminStats(chatId, messageId) {
   });
 }
 
-async function showAdminUsers(chatId, messageId, page = 0) {
+async function showAdminUsers(chatId, messageId, page) {
   const perPage = 10;
   const total = await User.countDocuments();
   const totalPages = Math.ceil(total / perPage);
   const users = await User.find().sort({ joinedAt: -1 }).skip(page * perPage).limit(perPage);
 
-  let text = `👥 *Foydalanuvchilar* (Sahifa ${page + 1}/${totalPages || 1})\n\n`;
+  let text = '👥 *Foydalanuvchilar* (Sahifa ' + (page + 1) + '/' + (totalPages || 1) + ')\n\n';
   users.forEach((u, i) => {
-    text += `${page * perPage + i + 1}. ID: \`${u.chatId}\`\n`;
-    text += `   @${u.username || 'yo\'q'} | ${u.firstName || ''}\n`;
-    text += `   💳 ${formatSum(u.balance)} | 📦 ${u.ordersCount} | 💸 ${formatSum(u.totalSpent)}\n\n`;
+    text += (page * perPage + i + 1) + '. ID: `' + u.chatId + '`\n';
+    text += '   @' + (u.username || 'yo\'q') + ' | ' + (u.firstName || '') + '\n';
+    text += '   💳 ' + formatSum(u.balance) + ' | 📦 ' + u.ordersCount + ' | 💸 ' + formatSum(u.totalSpent) + '\n\n';
   });
 
   const buttons = [];
-  if (page > 0) buttons.push({ text: '⬅️', callback_data: `admin_user_page_${page - 1}` });
-  if (page < totalPages - 1) buttons.push({ text: '➡️', callback_data: `admin_user_page_${page + 1}` });
+  if (page > 0) buttons.push({ text: '⬅️', callback_data: 'admin_user_page_' + (page - 1) });
+  if (page < totalPages - 1) buttons.push({ text: '➡️', callback_data: 'admin_user_page_' + (page + 1) });
 
   bot.editMessageText(text, {
     chat_id: chatId,
@@ -850,24 +850,24 @@ async function showAdminUsers(chatId, messageId, page = 0) {
   });
 }
 
-async function showAdminOrders(chatId, messageId, page = 0) {
+async function showAdminOrders(chatId, messageId, page) {
   const perPage = 10;
   const total = await Order.countDocuments();
   const totalPages = Math.ceil(total / perPage);
   const orders = await Order.find().sort({ createdAt: -1 }).skip(page * perPage).limit(perPage);
 
-  let text = `📋 *Buyurtmalar* (Sahifa ${page + 1}/${totalPages || 1})\n\n`;
+  let text = '📋 *Buyurtmalar* (Sahifa ' + (page + 1) + '/' + (totalPages || 1) + ')\n\n';
   orders.forEach((o, i) => {
     const statusEmoji = o.status === 'completed' ? '✅' : o.status === 'active' ? '⏳' : '🚫';
-    text += `${statusEmoji} ID: \`${o.activationId}\`\n`;
-    text += `   📱 ${o.serviceName} | 🌍 ${o.countryName}\n`;
-    text += `   💰 ${formatSum(o.price)}\n`;
-    text += `   👤 User: \`${o.userId}\`\n\n`;
+    text += statusEmoji + ' ID: `' + o.activationId + '`\n';
+    text += '   📱 ' + o.serviceName + ' | 🌍 ' + o.countryName + '\n';
+    text += '   💰 ' + formatSum(o.price) + '\n';
+    text += '   👤 User: `' + o.userId + '`\n\n';
   });
 
   const buttons = [];
-  if (page > 0) buttons.push({ text: '⬅️', callback_data: `admin_order_page_${page - 1}` });
-  if (page < totalPages - 1) buttons.push({ text: '➡️', callback_data: `admin_order_page_${page + 1}` });
+  if (page > 0) buttons.push({ text: '⬅️', callback_data: 'admin_order_page_' + (page - 1) });
+  if (page < totalPages - 1) buttons.push({ text: '➡️', callback_data: 'admin_order_page_' + (page + 1) });
 
   bot.editMessageText(text, {
     chat_id: chatId,
@@ -890,15 +890,15 @@ async function showAdminPayments(chatId, messageId) {
     return;
   }
 
-  let text = `💳 *Kutilayotgan to'lovlar*\n\n`;
+  let text = '💳 *Kutilayotgan to\'lovlar*\n\n';
   payments.forEach((p, i) => {
-    text += `${i + 1}. User: \`${p.userId}\`\n`;
-    text += `   💰 ${formatSum(p.amount)} | 🕐 ${p.createdAt.toLocaleString('uz-UZ')}\n\n`;
+    text += (i + 1) + '. User: `' + p.userId + '`\n';
+    text += '   💰 ' + formatSum(p.amount) + ' | 🕐 ' + p.createdAt.toLocaleString('uz-UZ') + '\n\n';
   });
 
   const buttons = payments.map(p => ([
-    { text: `✅ ${formatSum(p.amount)}`, callback_data: `admin_approve_payment_${p._id}` },
-    { text: `❌ Rad etish`, callback_data: `admin_reject_payment_${p._id}` }
+    { text: '✅ ' + formatSum(p.amount), callback_data: 'admin_approve_payment_' + p._id },
+    { text: '❌ Rad etish', callback_data: 'admin_reject_payment_' + p._id }
   ]));
   buttons.push([{ text: '🔙 Orqaga', callback_data: 'admin_panel' }]);
 
@@ -925,14 +925,14 @@ async function processPayment(adminChatId, messageId, paymentId, status) {
       await user.save();
     }
     bot.sendMessage(payment.userId,
-      `✅ *To'lovingiz tasdiqlandi!*\n\n` +
-      `💰 Summa: ${formatSum(payment.amount)}\n` +
-      `💳 Yangi balans: ${formatSum(user.balance)}`,
+      '✅ *To\'lovingiz tasdiqlandi!*\n\n' +
+      '💰 Summa: ' + formatSum(payment.amount) + '\n' +
+      '💳 Yangi balans: ' + formatSum(user.balance),
       { parse_mode: 'Markdown' }
     );
   } else {
     bot.sendMessage(payment.userId,
-      `❌ *To'lovingiz rad etildi.*\n\nAgar xatolik bo'lsa, admin bilan bog'laning.`,
+      '❌ *To\'lovingiz rad etildi.*\n\nAgar xatolik bo\'lsa, admin bilan bog\'laning.',
       { parse_mode: 'Markdown' }
     );
   }
@@ -945,10 +945,10 @@ async function showAdminBalance(chatId, messageId) {
     const balance = await getBalance();
     const sumBalance = Math.ceil(balance * USD_RATE);
 
-    const text = `💰 *API Balans*\n\n` +
-      `💵 Dollar: $${balance}\n` +
-      `💰 So'mda: ~${formatSum(sumBalance)}\n\n` +
-      `💱 Kurs: ${USD_RATE.toLocaleString()}`;
+    const text = '💰 *API Balans*\n\n' +
+      '💵 Dollar: $' + balance + '\n' +
+      '💰 So\'mda: ~' + formatSum(sumBalance) + '\n\n' +
+      '💱 Kurs: ' + USD_RATE.toLocaleString();
 
     bot.editMessageText(text, {
       chat_id: chatId,
@@ -957,7 +957,7 @@ async function showAdminBalance(chatId, messageId) {
       reply_markup: getAdminKeyboard()
     });
   } catch (e) {
-    bot.editMessageText(`❌ Xatolik: ${e.message}`, {
+    bot.editMessageText('❌ Xatolik: ' + e.message, {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: getAdminKeyboard()
@@ -966,11 +966,11 @@ async function showAdminBalance(chatId, messageId) {
 }
 
 async function showAdminSettings(chatId, messageId) {
-  const text = `⚙️ *Sozlamalar*\n\n` +
-    `💱 Kurs: 1 USD = ${USD_RATE.toLocaleString()} so'm\n` +
-    `📊 Marja: ${PROFIT_PERCENT}%\n` +
-    `👤 Adminlar: ${ADMIN_IDS.join(', ')}\n\n` +
-    `_Sozlamalarni o'zgartirish uchun .env faylni tahrirlang._`;
+  const text = '⚙️ *Sozlamalar*\n\n' +
+    '💱 Kurs: 1 USD = ' + USD_RATE.toLocaleString() + ' so\'m\n' +
+    '📊 Marja: ' + PROFIT_PERCENT + '%\n' +
+    '👤 Adminlar: ' + ADMIN_IDS.join(', ') + '\n\n' +
+    '_Sozlamalarni o\'zgartirish uchun .env faylni tahrirlang._';
 
   bot.editMessageText(text, {
     chat_id: chatId,
@@ -1009,8 +1009,8 @@ bot.on('message', async (msg) => {
     state.amount = amount;
 
     bot.sendMessage(chatId,
-      `✅ Summa: ${formatSum(amount)}\n\n` +
-      `Endi to'lov chekini (skrinshot) yuboring:`,
+      '✅ Summa: ' + formatSum(amount) + '\n\n' +
+      'Endi to\'lov chekini (skrinshot) yuboring:',
       {
         reply_markup: { inline_keyboard: [[{ text: '🔙 Bekor qilish', callback_data: 'deposit' }]] }
       }
@@ -1031,9 +1031,9 @@ bot.on('message', async (msg) => {
     delete userState[chatId];
 
     bot.sendMessage(chatId,
-      `✅ *So'rovingiz yuborildi!*\n\n` +
-      `💰 Summa: ${formatSum(state.amount)}\n` +
-      `⏳ Admin tekshirib, hisobingizni to'ldiradi.`,
+      '✅ *So\'rovingiz yuborildi!*\n\n' +
+      '💰 Summa: ' + formatSum(state.amount) + '\n' +
+      '⏳ Admin tekshirib, hisobingizni to\'ldiradi.',
       {
         parse_mode: 'Markdown',
         reply_markup: await getMainKeyboard(chatId)
@@ -1042,10 +1042,10 @@ bot.on('message', async (msg) => {
 
     ADMIN_IDS.forEach(adminId => {
       bot.sendMessage(adminId,
-        `💳 *Yangi to'lov so'rovi!*\n\n` +
-        `👤 User: \`${chatId}\`\n` +
-        `💰 Summa: ${formatSum(state.amount)}\n\n` +
-        `Admin paneldan tekshiring.`
+        '💳 *Yangi to\'lov so\'rovi!*\n\n' +
+        '👤 User: `' + chatId + '`\n' +
+        '💰 Summa: ' + formatSum(state.amount) + '\n\n' +
+        'Admin paneldan tekshiring.'
       );
     });
 
@@ -1062,20 +1062,29 @@ bot.on('polling_error', (err) => {
 // ========== ISHGA TUSHIRISH ==========
 
 console.log('🚀 SMM Hero Bot ishga tushdi...');
-console.log(`👤 Adminlar: ${ADMIN_IDS.join(', ')}`);
-console.log(`💱 Kurs: ${USD_RATE} so'm`);
-console.log(`📊 Marja: ${PROFIT_PERCENT}%`);
+console.log('👤 Adminlar: ' + ADMIN_IDS.join(', '));
+console.log('💱 Kurs: ' + USD_RATE + ' so\'m');
+console.log('📊 Marja: ' + PROFIT_PERCENT + '%');
 '''
 
 with open('/mnt/agents/output/index.js', 'w', encoding='utf-8') as f:
     f.write(code)
 
-# Sintaksis tekshiruvi
-open_braces = code.count('{')
-close_braces = code.count('}')
-open_parens = code.count('(')
-close_parens = code.count(')')
+# Tekshirish
+with open('/mnt/agents/output/index.js', 'r', encoding='utf-8') as f:
+    check = f.read()
 
-print(f"✅ index.js yaratildi! ({len(code):,} bayt)")
+print(f"✅ Fayl yaratildi: {len(check):,} bayt")
+print(f"Birinchi 100 belgi: {repr(check[:100])}")
+
+# Sintaksis tekshiruvi
+open_braces = check.count('{')
+close_braces = check.count('}')
+open_parens = check.count('(')
+close_parens = check.count(')')
 print(f"{{  ochiq: {open_braces}, yopiq: {close_braces} {'✅' if open_braces == close_braces else '❌'}")
 print(f"( ) ochiq: {open_parens}, yopiq: {close_parens} {'✅' if open_parens == close_parens else '❌'}")
+
+# Eski matn yo'qligini tekshirish
+has_old = "Buyruqlar:" in check
+print(f"❌ Eski 'Buyruqlar:' matni: {'YOQ' if not has_old else 'Bor!'}")
