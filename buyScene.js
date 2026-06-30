@@ -1,5 +1,5 @@
-const { User, Activation } = require('../models');
-const { getSetting } = require('../settings');
+const { User, Activation } = require('./models');
+const { getSetting } = require('./settings');
 const {
   getNumber,
   getStatus,
@@ -8,7 +8,7 @@ const {
   SERVICES,
   COUNTRIES,
   ERROR_MAP,
-} = require('../herosms');
+} = require('./herosms');
 const {
   servicesKeyboard,
   countriesKeyboard,
@@ -16,8 +16,8 @@ const {
   cancelActivationKeyboard,
   backToMain,
   mainMenu,
-} = require('../keyboards');
-const { isAdmin } = require('../middlewares/admin');
+} = require('./keyboards');
+const { isAdmin } = require('./admin');
 
 // Faol polllar: telegramId -> timeout
 const activePolls = {};
