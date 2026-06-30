@@ -270,7 +270,8 @@ bot.catch((err, ctx) => {
   } catch {}
 });
 
-// ================= LAUNCH (WEBHOOK) =================
+// ================= LAUNCH (WEBHOOK + HEALTH CHECK) =================
+const express = require('express');
 const PORT = process.env.PORT || 3000;
 // RENDER_EXTERNAL_URL Render tomonidan avtomatik beriladi (masalan: https://my-bot.onrender.com)
 // Agar boshqa hostingda bo'lsa, WEBHOOK_URL ni .env orqali qo'lda bering.
@@ -282,29 +283,37 @@ if (!DOMAIN) {
   process.exit(1);
 }
 
-async function launchWithRetry(retries = 5) {
+const app = express();
+app.use(express.json());
+
+// UptimeRobot yoki boshqa monitoring xizmati uchun "tirikligini" tekshirish yo'li.
+// Bu yo'lga har necha daqiqada so'rov yuborilsa, Render bepul instansiyasi uxlab qolmaydi.
+app.get('/ping', (req, res) => res.status(200).send('OK'));
+app.get('/', (req, res) => res.status(200).send('Bot ishlayapti'));
+
+app.use(bot.webhookCallback(WEBHOOK_PATH));
+
+async function setWebhookWithRetry(retries = 5) {
   try {
-    await bot.launch({
-      webhook: {
-        domain: DOMAIN,
-        hookPath: WEBHOOK_PATH,
-        port: PORT,
-      },
-    });
-    console.log(`✅ Webhook o'rnatildi: ${DOMAIN}${WEBHOOK_PATH}\n🤖 Bot ishga tushdi (webhook, port ${PORT})`);
+    await bot.telegram.setWebhook(`${DOMAIN}${WEBHOOK_PATH}`);
+    console.log(`✅ Webhook o'rnatildi: ${DOMAIN}${WEBHOOK_PATH}`);
   } catch (err) {
     const retryAfter = err?.response?.parameters?.retry_after || 2;
     if (retries > 0 && err?.response?.error_code === 429) {
       console.warn(`⏳ Telegram rate-limit (429). ${retryAfter}s kutib qayta urinish... (qolgan: ${retries})`);
       await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
-      return launchWithRetry(retries - 1);
+      return setWebhookWithRetry(retries - 1);
     }
-    console.error('❌ Bot ishga tushmadi:', err.message);
+    console.error('❌ Webhook o\'rnatilmadi:', err.message);
     process.exit(1);
   }
 }
 
-launchWithRetry();
+app.listen(PORT, async () => {
+  console.log(`🌐 Server ${PORT}-portda ishga tushdi`);
+  await setWebhookWithRetry();
+  console.log('🤖 Bot ishga tushdi (webhook)');
+});
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
