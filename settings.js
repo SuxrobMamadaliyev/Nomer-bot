@@ -4,11 +4,12 @@ const DEFAULTS = {
   markup_percent: 30,          // HeroSMS narxiga qo'shiladigan foiz (%)
   usd_to_uzs: 12700,           // 1 dollar = ? so'm
   topup_fee_percent: 3,        // Balans to'ldirishda ushlab qolinadigan komissiya (%)
+  star_to_uzs: 220,            // 1 Telegram Star = ? so'm (Stars orqali to'ldirishda balansga shu kursda qo'shiladi)
   min_balance_uzs: 5000,       // Minimal balans (so'm)
   referral_bonus_uzs: 3000,    // Referal uchun bonus (so'm)
   card_number: '8600 0000 0000 0000',
   card_holder: 'Abdullayev Abdulla',
-  support_username: '@uzbrry',
+  support_username: '@admin_support',
   force_sub_channel: '',       // Majburiy obuna kanal username (masalan: @mychannel). Bo'sh bo'lsa — o'chirilgan.
 };
 
