@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const { User, Activation } = require('./models');
 const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
 const { mainMenu, backToMain } = require('./keyboards');
+const { requireChannelSub } = require('./channelSub');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
 const { topupScene, showTopupMenu, approveTopup } = require('./topupScene');
@@ -47,6 +48,9 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
+// ---- Majburiy kanal obunasi tekshiruvi ----
+bot.use(requireChannelSub);
+
 // ================= START =================
 bot.start(async ctx => {
   const admin = isAdmin(ctx.from.id);
@@ -78,6 +82,21 @@ bot.start(async ctx => {
     `Quyidagi menyudan foydalaning:`,
     mainMenu(admin)
   );
+});
+
+// ================= KANAL OBUNASINI TEKSHIRISH =================
+bot.action('check_sub', async ctx => {
+  const admin = isAdmin(ctx.from.id);
+  await ctx.answerCbQuery('✅ Tekshirildi!');
+  try {
+    await ctx.editMessageText(
+      `👋 Xush kelibsiz, ${ctx.from.first_name}!\n\n` +
+      `Quyidagi menyudan foydalaning:`,
+      { parse_mode: 'HTML', ...mainMenu(admin) }
+    );
+  } catch {
+    await ctx.reply('🏠 Bosh menyu', mainMenu(admin));
+  }
 });
 
 // ================= MAIN MENU =================
