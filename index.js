@@ -4,16 +4,10 @@ const mongoose = require('mongoose');
 
 const { User, Activation } = require('./models');
 const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
-const { requireSubscription } = require('./subscriptionMw');
 const { mainMenu, backToMain } = require('./keyboards');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
-const {
-  subscriptionScene,
-  showSubscriptionMenu,
-  approveSubscription,
-  PLAN_LABEL,
-} = require('./subscriptionScene');
+const { topupScene, showTopupMenu, approveTopup } = require('./topupScene');
 const {
   showServices,
   handleServiceSelect,
@@ -31,7 +25,7 @@ mongoose
   .catch(err => console.error('❌ MongoDB xatosi:', err));
 
 // ---- Scenes ----
-const stage = new Scenes.Stage([adminScene(), subscriptionScene()]);
+const stage = new Scenes.Stage([adminScene(), topupScene()]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -52,9 +46,6 @@ bot.use(async (ctx, next) => {
   }
   return next();
 });
-
-// ---- Majburiy obuna tekshiruvi ----
-bot.use(requireSubscription);
 
 // ================= START =================
 bot.start(async ctx => {
@@ -93,7 +84,11 @@ bot.start(async ctx => {
 bot.action('back_main', async ctx => {
   await ctx.answerCbQuery();
   const admin = isAdmin(ctx.from.id);
-  await ctx.editMessageText('🏠 <b>Bosh menyu</b>', { parse_mode: 'HTML', ...mainMenu(admin) });
+  try {
+    await ctx.editMessageText('🏠 <b>Bosh menyu</b>', { parse_mode: 'HTML', ...mainMenu(admin) });
+  } catch {
+    await ctx.reply('🏠 <b>Bosh menyu</b>', { parse_mode: 'HTML', ...mainMenu(admin) });
+  }
 });
 
 bot.action('help', async ctx => {
@@ -104,7 +99,7 @@ bot.action('help', async ctx => {
     `❓ <b>Yordam</b>\n\n` +
     `📱 "Raqam olish" — virtual raqam sotib olish\n` +
     `👤 "Kabinet" — balans va tarix\n` +
-    `💎 "Obuna" — majburiy obunani faollashtirish\n\n` +
+    `👛 "Balans to'ldirish" — karta orqali to'lov\n\n` +
     `💬 Savollar bo'yicha: ${support}`,
     { parse_mode: 'HTML', ...backToMain() }
   );
@@ -156,10 +151,10 @@ bot.action(/^cancel_act_(.+)$/, async ctx => {
   await handleCancelActivation(ctx, ctx.match[1]);
 });
 
-// ================= SUBSCRIPTION (entry point) =================
-bot.action('subscription', async ctx => {
+// ================= BALANS TO'LDIRISH (entry point) =================
+bot.action('topup', async ctx => {
   await ctx.answerCbQuery();
-  await ctx.scene.enter('subscription_flow');
+  await ctx.scene.enter('topup_flow');
 });
 
 // ================= ADMIN PANEL (entry point) =================
@@ -168,13 +163,14 @@ bot.action('admin_panel', adminOnly, async ctx => {
   await ctx.scene.enter('admin');
 });
 
-// ================= ADMIN: obuna tasdiqlash / rad etish =================
-bot.action(/^approve_sub_(\d+)_(.+)$/, async ctx => {
+// ================= ADMIN: balans to'ldirish tasdiqlash / rad etish =================
+bot.action(/^approve_topup_(\d+)_(\d+)_(\d+)$/, async ctx => {
   if (!isAdmin(ctx.from.id)) return ctx.answerCbQuery('⛔ Ruxsat yoq', { show_alert: true });
   await ctx.answerCbQuery('✅ Tasdiqlandi');
   const targetUserId = parseInt(ctx.match[1]);
-  const planKey = ctx.match[2];
-  await approveSubscription(ctx, targetUserId, planKey);
+  const credited = parseInt(ctx.match[2]);
+  const fee = parseInt(ctx.match[3]);
+  await approveTopup(ctx, targetUserId, credited, fee);
   try {
     await ctx.editMessageCaption(
       ctx.callbackQuery.message.caption + '\n\n✅ <b>TASDIQLANDI</b>',
@@ -183,12 +179,12 @@ bot.action(/^approve_sub_(\d+)_(.+)$/, async ctx => {
   } catch {}
 });
 
-bot.action(/^reject_sub_(\d+)$/, async ctx => {
+bot.action(/^reject_topup_(\d+)$/, async ctx => {
   if (!isAdmin(ctx.from.id)) return ctx.answerCbQuery('⛔ Ruxsat yoq', { show_alert: true });
   await ctx.answerCbQuery('❌ Rad etildi');
   const targetUserId = parseInt(ctx.match[1]);
   try {
-    await ctx.telegram.sendMessage(targetUserId, '❌ To\'lov chekingiz rad etildi. Iltimos, admin bilan bog\'laning yoki qaytadan urinib ko\'ring.', backToMain());
+    await ctx.telegram.sendMessage(targetUserId, "❌ To'lov chekingiz rad etildi. Iltimos, admin bilan bog'laning yoki qaytadan urinib ko'ring.", backToMain());
   } catch {}
   try {
     await ctx.editMessageCaption(
@@ -208,7 +204,7 @@ bot.command('addbalance', async ctx => {
   }
   const [, targetId, amountStr] = parts;
   const amount = parseFloat(amountStr);
-  if (isNaN(amount)) return ctx.reply('❌ Miqdor noto\'g\'ri.');
+  if (isNaN(amount)) return ctx.reply("❌ Miqdor noto'g'ri.");
 
   await User.findOneAndUpdate(
     { telegramId: parseInt(targetId) },
@@ -225,7 +221,7 @@ bot.command('addbalance', async ctx => {
 bot.catch((err, ctx) => {
   console.error('Bot xatosi:', err);
   try {
-    ctx.reply('❌ Texnik xatolik yuz berdi. Iltimos, keyinroq urinib ko\'ring.');
+    ctx.reply("❌ Texnik xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.");
   } catch {}
 });
 
