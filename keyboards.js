@@ -8,7 +8,7 @@ function mainMenu(isAdmin = false) {
       Markup.button.callback('👤 Kabinet', 'cabinet'),
     ],
     [
-      Markup.button.callback('💎 Obuna', 'subscription'),
+      Markup.button.callback('👛 Balans to\'ldirish', 'topup'),
       Markup.button.callback('❓ Yordam', 'help'),
     ],
   ];
@@ -42,15 +42,6 @@ function countriesKeyboard(serviceCode) {
   return Markup.inlineKeyboard(rows);
 }
 
-function subscriptionKeyboard(prices) {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback(`1 oy — ${prices.sub_1month_uzs.toLocaleString()} so'm`, 'sub_1month')],
-    [Markup.button.callback(`3 oy — ${prices.sub_3month_uzs.toLocaleString()} so'm`, 'sub_3month')],
-    [Markup.button.callback(`♾ Umrbod — ${prices.sub_lifetime_uzs.toLocaleString()} so'm`, 'sub_lifetime')],
-    [Markup.button.callback('🔙 Orqaga', 'back_main')],
-  ]);
-}
-
 function adminPanelKeyboard() {
   return Markup.inlineKeyboard([
     [
@@ -58,24 +49,14 @@ function adminPanelKeyboard() {
       Markup.button.callback('💱 USD kurs', 'adm_usdrate'),
     ],
     [
-      Markup.button.callback('📦 Obuna narxlari', 'adm_subprices'),
+      Markup.button.callback('📉 Toʻldirish komissiyasi', 'adm_topupfee'),
       Markup.button.callback('💳 Karta', 'adm_card'),
     ],
-    [
-      Markup.button.callback('🎁 Referal bonus', 'adm_referral'),
-      Markup.button.callback('📊 Statistika', 'adm_stats'),
-    ],
+    [Markup.button.callback('📊 Statistika', 'adm_stats')],
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
 }
 
-function adminSubPricesKeyboard() {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback("1 oylik narx", 'adm_sub1'), Markup.button.callback("3 oylik narx", 'adm_sub3')],
-    [Markup.button.callback("Umrbod narx", 'adm_sublife')],
-    [Markup.button.callback('🔙 Admin panel', 'admin_panel')],
-  ]);
-}
 
 function backToAdmin() {
   return Markup.inlineKeyboard([[Markup.button.callback('🔙 Admin panel', 'admin_panel')]]);
@@ -102,9 +83,7 @@ module.exports = {
   mainMenu,
   servicesKeyboard,
   countriesKeyboard,
-  subscriptionKeyboard,
   adminPanelKeyboard,
-  adminSubPricesKeyboard,
   backToAdmin,
   backToMain,
   confirmBuyKeyboard,
