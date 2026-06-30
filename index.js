@@ -256,17 +256,29 @@ if (!DOMAIN) {
   process.exit(1);
 }
 
-bot.telegram.setWebhook(`${DOMAIN}${WEBHOOK_PATH}`).then(() => {
-  console.log(`✅ Webhook o'rnatildi: ${DOMAIN}${WEBHOOK_PATH}`);
-});
+async function launchWithRetry(retries = 5) {
+  try {
+    await bot.launch({
+      webhook: {
+        domain: DOMAIN,
+        hookPath: WEBHOOK_PATH,
+        port: PORT,
+      },
+    });
+    console.log(`✅ Webhook o'rnatildi: ${DOMAIN}${WEBHOOK_PATH}\n🤖 Bot ishga tushdi (webhook, port ${PORT})`);
+  } catch (err) {
+    const retryAfter = err?.response?.parameters?.retry_after || 2;
+    if (retries > 0 && err?.response?.error_code === 429) {
+      console.warn(`⏳ Telegram rate-limit (429). ${retryAfter}s kutib qayta urinish... (qolgan: ${retries})`);
+      await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+      return launchWithRetry(retries - 1);
+    }
+    console.error('❌ Bot ishga tushmadi:', err.message);
+    process.exit(1);
+  }
+}
 
-bot.launch({
-  webhook: {
-    domain: DOMAIN,
-    hookPath: WEBHOOK_PATH,
-    port: PORT,
-  },
-}).then(() => console.log(`🤖 Bot ishga tushdi (webhook, port ${PORT})`));
+launchWithRetry();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
