@@ -50,12 +50,13 @@ function adminPanelKeyboard() {
     ],
     [
       Markup.button.callback('📉 Toʻldirish komissiyasi', 'adm_topupfee'),
-      Markup.button.callback('💳 Karta', 'adm_card'),
+      Markup.button.callback('⭐ Stars kursi', 'adm_starsrate'),
     ],
     [
+      Markup.button.callback('💳 Karta', 'adm_card'),
       Markup.button.callback('📢 Majburiy kanal', 'adm_channel'),
-      Markup.button.callback('📊 Statistika', 'adm_stats'),
     ],
+    [Markup.button.callback('📊 Statistika', 'adm_stats')],
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
 }
