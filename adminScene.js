@@ -11,6 +11,7 @@ async function showAdminPanel(ctx) {
     `⚙️ <b>Admin Panel</b>\n\n` +
     `💰 Markup (raqam narxiga): <b>${s.markup_percent}%</b>\n` +
     `📉 Toʻldirish komissiyasi: <b>${s.topup_fee_percent}%</b>\n` +
+    `⭐ Stars kursi: <b>1⭐ = ${s.star_to_uzs.toLocaleString()} so'm</b>\n` +
     `💱 USD/UZS kurs: <b>${s.usd_to_uzs.toLocaleString()} so'm</b>\n` +
     `💳 Karta: <b>${s.card_number}</b>\n` +
     `👤 Egasi: <b>${s.card_holder}</b>\n` +
@@ -50,6 +51,7 @@ function adminScene() {
     adm_markup:     { key: 'markup_percent',     label: 'Yangi markup foizini kiriting (masalan: 25)' },
     adm_usdrate:    { key: 'usd_to_uzs',         label: "1 USD = ? so'm (masalan: 12700)" },
     adm_topupfee:   { key: 'topup_fee_percent',  label: "Balans to'ldirish komissiyasini kiriting % (masalan: 5)" },
+    adm_starsrate:  { key: 'star_to_uzs',        label: "1 Telegram Star necha so'mligini kiriting (masalan: 220)" },
     adm_card:       { key: '_card_combo',        label: 'Karta raqami va egasini kiriting:\nFormat: KARTA_RAQAMI|Ism Familiya\nMasalan: 8600 1234 5678 9012|Karimov Karim' },
     adm_support:    { key: 'support_username',   label: 'Support username kiriting (masalan: @admin_support)' },
     adm_channel_set:{ key: 'force_sub_channel',  label: "Kanal username'ini kiriting (masalan: @mychannel).\n❗️Bot kanalda admin bo'lishi shart, aks holda tekshiruv ishlamaydi." },
@@ -156,7 +158,7 @@ function adminScene() {
         await ctx.reply(`✅ Majburiy kanal oʻrnatildi: ${channel}\n\n❗️Eslatma: botni shu kanalga admin qilib qoʻyishni unutmang, aks holda obuna tekshiruvi ishlamaydi.`, backToAdmin());
       } else {
         const numVal = parseFloat(val);
-        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent'].includes(w.key)) {
+        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs'].includes(w.key)) {
           if (isNaN(numVal) || numVal < 0) {
             return ctx.reply("❌ Iltimos, to'g'ri raqam kiriting.", backToAdmin());
           }
