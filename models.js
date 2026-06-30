@@ -7,8 +7,7 @@ const userSchema = new mongoose.Schema({
   fullName: String,
   balance: { type: Number, default: 0 }, // UZS
   totalSpent: { type: Number, default: 0 },
-  isPremium: { type: Boolean, default: false },
-  premiumUntil: Date,
+  totalFeeCollected: { type: Number, default: 0 }, // Balans to'ldirishda ushlab qolingan komissiya
   referredBy: Number,
   referralCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
@@ -33,19 +32,8 @@ const activationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// ---- Obuna ----
-const subscriptionSchema = new mongoose.Schema({
-  telegramId: Number,
-  plan: String,
-  priceUZS: Number,
-  startDate: { type: Date, default: Date.now },
-  endDate: Date,
-  active: { type: Boolean, default: true },
-});
-
 const User = mongoose.model('User', userSchema);
 const Settings = mongoose.model('Settings', settingsSchema);
 const Activation = mongoose.model('Activation', activationSchema);
-const Subscription = mongoose.model('Subscription', subscriptionSchema);
 
-module.exports = { User, Settings, Activation, Subscription };
+module.exports = { User, Settings, Activation };
