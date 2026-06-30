@@ -4,31 +4,30 @@ const { getAllSettings } = require('./settings');
 const { backToMain } = require('./keyboards');
 const { ADMIN_IDS } = require('./admin');
 
-// Waiting state: telegramId -> { step: 'amount' | 'receipt', amount, fee, credited }
+// Waiting state: telegramId -> { step, method, amount, fee, credited }
 const waiting = {};
 
-async function showTopupMenu(ctx) {
-  const s = await getAllSettings();
-  const user = await User.findOne({ telegramId: ctx.from.id });
+function methodKeyboard() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('⭐ Telegram Stars (avtomatik)', 'topup_method_stars')],
+    [Markup.button.callback('💳 Karta orqali (chek bilan)', 'topup_method_card')],
+    [Markup.button.callback('❌ Bekor', 'back_main')],
+  ]);
+}
 
+async function showTopupMenu(ctx) {
+  const user = await User.findOne({ telegramId: ctx.from.id });
   const text =
     `👛 <b>Balans to'ldirish</b>\n\n` +
     `💰 Joriy balans: <b>${(user?.balance || 0).toLocaleString()} so'm</b>\n\n` +
-    `ℹ️ To'ldirishda <b>${s.topup_fee_percent}%</b> xizmat haqi ushlab qolinadi.\n\n` +
-    `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`;
+    `To'ldirish usulini tanlang:`;
 
-  waiting[ctx.from.id] = { step: 'amount' };
+  waiting[ctx.from.id] = { step: 'choose_method' };
 
   if (ctx.callbackQuery) {
-    await ctx.editMessageText(text, {
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'back_main')]]),
-    });
+    await ctx.editMessageText(text, { parse_mode: 'HTML', ...methodKeyboard() });
   } else {
-    await ctx.reply(text, {
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'back_main')]]),
-    });
+    await ctx.reply(text, { parse_mode: 'HTML', ...methodKeyboard() });
   }
 }
 
@@ -45,11 +44,43 @@ function topupScene() {
 
   scene.on('callback_query', async (ctx, next) => {
     const data = ctx.callbackQuery.data;
+
     if (data === 'back_main') {
       await ctx.answerCbQuery();
       delete waiting[ctx.from.id];
       return ctx.scene.leave();
     }
+
+    if (data === 'topup_method_card') {
+      await ctx.answerCbQuery();
+      waiting[ctx.from.id] = { step: 'amount', method: 'card' };
+      const s = await getAllSettings();
+      return ctx.editMessageText(
+        `💳 <b>Karta orqali to'ldirish</b>\n\n` +
+        `ℹ️ To'ldirishda <b>${s.topup_fee_percent}%</b> xizmat haqi ushlab qolinadi.\n\n` +
+        `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+      );
+    }
+
+    if (data === 'topup_method_stars') {
+      await ctx.answerCbQuery();
+      waiting[ctx.from.id] = { step: 'amount', method: 'stars' };
+      const s = await getAllSettings();
+      return ctx.editMessageText(
+        `⭐ <b>Telegram Stars orqali to'ldirish</b>\n\n` +
+        `ℹ️ Kurs: 1 ⭐ = ${s.star_to_uzs.toLocaleString()} so'm\n` +
+        `✅ Bu usulda komissiya olinmaydi, balans darhol avtomatik to'ldiriladi.\n\n` +
+        `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+      );
+    }
+
+    if (data === 'topup') {
+      await ctx.answerCbQuery();
+      return showTopupMenu(ctx);
+    }
+
     return next();
   });
 
@@ -63,8 +94,35 @@ function topupScene() {
     }
 
     const s = await getAllSettings();
+
+    if (w.method === 'stars') {
+      // Stars orqali to'lov — narxni Stars'ga aylantiramiz
+      const starsAmount = Math.ceil(amount / s.star_to_uzs);
+      delete waiting[ctx.from.id];
+
+      try {
+        await ctx.replyWithInvoice({
+          title: "Balansni to'ldirish",
+          description: `Botdagi balansingizga ${amount.toLocaleString()} so'm qo'shiladi.`,
+          payload: `topup_${ctx.from.id}_${amount}_${Date.now()}`,
+          provider_token: '', // Stars uchun bo'sh
+          currency: 'XTR',
+          prices: [{ label: 'Balans to\'ldirish', amount: starsAmount }],
+        });
+        await ctx.reply(
+          `⭐ Hisob-faktura yuborildi: <b>${starsAmount} Stars</b> (≈ ${amount.toLocaleString()} so'm)\n\n` +
+          `To'lovni amalga oshirish uchun yuqoridagi xabardagi "Pay" tugmasini bosing.`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (e) {
+        await ctx.reply('❌ Hisob-faktura yaratishda xato: ' + e.message, backToMain());
+      }
+      return;
+    }
+
+    // Karta orqali (chek bilan)
     const { fee, credited } = calcFee(amount, s.topup_fee_percent);
-    waiting[ctx.from.id] = { step: 'receipt', amount, fee, credited };
+    waiting[ctx.from.id] = { step: 'receipt', method: 'card', amount, fee, credited };
 
     await ctx.reply(
       `💳 <b>To'lov</b>\n\n` +
@@ -89,7 +147,7 @@ function topupScene() {
     const photo = ctx.message.photo[ctx.message.photo.length - 1].file_id;
 
     const caption =
-      `🧾 <b>Balans to'ldirish so'rovi</b>\n\n` +
+      `🧾 <b>Balans to'ldirish so'rovi (Karta)</b>\n\n` +
       `👤 Foydalanuvchi: ${ctx.from.first_name} (@${ctx.from.username || '—'})\n` +
       `🆔 ID: <code>${ctx.from.id}</code>\n\n` +
       `💰 Kelgan to'lov: <b>${amount.toLocaleString()} so'm</b>\n` +
@@ -124,6 +182,7 @@ function topupScene() {
   return scene;
 }
 
+// Karta orqali to'lovni admin tasdiqlaganda chaqiriladi
 async function approveTopup(ctx, targetUserId, credited, fee) {
   await User.findOneAndUpdate(
     { telegramId: targetUserId },
@@ -141,4 +200,19 @@ async function approveTopup(ctx, targetUserId, credited, fee) {
   } catch {}
 }
 
-module.exports = { topupScene, showTopupMenu, approveTopup, calcFee };
+// Stars orqali to'lov muvaffaqiyatli bo'lganda chaqiriladi (index.js dagi successful_payment handlerida)
+async function creditStarsPayment(ctx, telegramId, amountUZS, starsCount) {
+  await User.findOneAndUpdate(
+    { telegramId },
+    { $inc: { balance: amountUZS } },
+    { upsert: true }
+  );
+  await ctx.reply(
+    `✅ <b>To'lov muvaffaqiyatli!</b>\n\n` +
+    `⭐ To'landi: <b>${starsCount} Stars</b>\n` +
+    `➕ Balansga qo'shildi: <b>${amountUZS.toLocaleString()} so'm</b>`,
+    { parse_mode: 'HTML', ...backToMain() }
+  );
+}
+
+module.exports = { topupScene, showTopupMenu, approveTopup, calcFee, creditStarsPayment };
