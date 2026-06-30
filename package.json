@@ -2,19 +2,14 @@
   "name": "nomer-bot",
   "version": "2.0.0",
   "description": "HeroSMS nomer sotuvchi Telegram bot (admin panel + markup narx)",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "telegraf": "^4.16.3",
     "axios": "^1.7.7",
     "mongoose": "^8.4.0",
     "dotenv": "^16.4.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
   }
 }
-
