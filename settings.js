@@ -8,7 +8,7 @@ const DEFAULTS = {
   referral_bonus_uzs: 3000,    // Referal uchun bonus (so'm)
   card_number: '8600 0000 0000 0000',
   card_holder: 'Abdullayev Abdulla',
-  support_username: '@admin_support',
+  support_username: '@uzbrry',
   force_sub_channel: '',       // Majburiy obuna kanal username (masalan: @mychannel). Bo'sh bo'lsa — o'chirilgan.
 };
 
