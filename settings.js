@@ -3,9 +3,7 @@ const { Settings } = require('./models');
 const DEFAULTS = {
   markup_percent: 30,          // HeroSMS narxiga qo'shiladigan foiz (%)
   usd_to_uzs: 12700,           // 1 dollar = ? so'm
-  sub_1month_uzs: 29000,       // 1 oylik obuna narxi (so'm)
-  sub_3month_uzs: 79000,       // 3 oylik obuna narxi (so'm)
-  sub_lifetime_uzs: 199000,    // Umrbod obuna narxi (so'm)
+  topup_fee_percent: 3,        // Balans to'ldirishda ushlab qolinadigan komissiya (%)
   min_balance_uzs: 5000,       // Minimal balans (so'm)
   referral_bonus_uzs: 3000,    // Referal uchun bonus (so'm)
   card_number: '8600 0000 0000 0000',
