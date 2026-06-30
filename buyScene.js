@@ -73,8 +73,7 @@ async function handleCountrySelect(ctx, serviceCode, countryCode) {
     `📋 <b>Buyurtma ma'lumotlari</b>\n\n` +
     `🔧 Servis: <b>${svc.name}</b>\n` +
     `🌍 Mamlakat: <b>${cnt.name}</b>\n` +
-    `💵 HeroSMS narxi: <b>$${(cost || 0.1).toFixed(3)}</b>\n` +
-    `💰 Sizga narx: <b>${priceUZS.toLocaleString()} so'm</b>\n` +
+    `💰 Narx: <b>${priceUZS.toLocaleString()} so'm</b>\n` +
     `📦 Mavjud raqamlar: <b>${count}</b>\n\n` +
     `👛 Sizning balansingiz: <b>${balance.toLocaleString()} so'm</b>\n\n` +
     (balance >= priceUZS
