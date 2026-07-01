@@ -1,6 +1,6 @@
 const { Scenes, Markup } = require('telegraf');
 const { getSetting, setSetting, getAllSettings } = require('./settings');
-const { adminPanelKeyboard, backToAdmin } = require('./keyboards');
+const { adminPanelKeyboard, backToAdmin, safeEdit } = require('./keyboards');
 const { User, Activation } = require('./models');
 const { getBalance } = require('./herosms');
 
@@ -23,7 +23,7 @@ async function showAdminPanel(ctx) {
 
   const keyboard = adminPanelKeyboard();
   if (ctx.callbackQuery) {
-    await ctx.editMessageText(text, { parse_mode: 'HTML', ...keyboard });
+    await safeEdit(ctx, text, { parse_mode: 'HTML', ...keyboard });
   } else {
     await ctx.reply(text, { parse_mode: 'HTML', ...keyboard });
   }
@@ -91,7 +91,7 @@ function adminScene() {
       const listText = channels.length
         ? channels.map((c, i) => `${i + 1}. ${c}`).join('\n')
         : 'Hozircha kanal qoʻshilmagan.';
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         `📢 <b>Majburiy obuna kanallari</b>\n\n${listText}\n\n` +
         (channels.length
           ? "Foydalanuvchilar botdan foydalanishdan oldin barcha kanallarga aʼzo boʻlishlari shart."
@@ -106,7 +106,7 @@ function adminScene() {
         key: '_channel_add',
         label: "Kanal username yoki linkini kiriting (masalan: @mychannel yoki https://t.me/mychannel).\n❗️Bot shu kanalda admin boʻlishi shart, aks holda tekshiruv ishlamaydi.",
       };
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         `✏️ ${waiting[ctx.from.id].label}`,
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_channel')]]) }
       );
@@ -124,7 +124,7 @@ function adminScene() {
       const listText = channels.length
         ? channels.map((c, i) => `${i + 1}. ${c}`).join('\n')
         : 'Hozircha kanal qoʻshilmagan.';
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         `📢 <b>Majburiy obuna kanallari</b>\n\n${listText}`,
         { parse_mode: 'HTML', ...channelMenuKeyboard(channels) }
       );
@@ -133,7 +133,7 @@ function adminScene() {
     if (data === 'adm_channel_clear') {
       await ctx.answerCbQuery('🚫 Barchasi oʻchirildi');
       await setSetting('force_sub_channels', []);
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         '🚫 Barcha majburiy kanallar oʻchirildi. Endi foydalanuvchilar erkin foydalanishadi.',
         { parse_mode: 'HTML', ...backToAdmin() }
       );
@@ -142,7 +142,7 @@ function adminScene() {
     if (data === 'adm_image') {
       await ctx.answerCbQuery();
       const image = await getSetting('main_menu_image');
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         `🖼 <b>Bosh menyu rasmi</b>\n\n` +
         `Joriy holat: <b>${image ? 'oʻrnatilgan' : 'oʻrnatilmagan'}</b>\n\n` +
         (image
@@ -156,7 +156,7 @@ function adminScene() {
       await ctx.answerCbQuery();
       delete waiting[ctx.from.id];
       waitingPhoto[ctx.from.id] = true;
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         '🖼 Bosh menyu uchun rasm yuboring (surat sifatida, fayl emas).',
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_image')]]) }
       );
@@ -165,7 +165,7 @@ function adminScene() {
     if (data === 'adm_image_remove') {
       await ctx.answerCbQuery('🗑 Oʻchirildi');
       await setSetting('main_menu_image', '');
-      return ctx.editMessageText(
+      return safeEdit(ctx, 
         '🗑 Bosh menyu rasmi oʻchirildi.',
         { parse_mode: 'HTML', ...backToAdmin() }
       );
@@ -188,7 +188,7 @@ function adminScene() {
         heroBalance = '$' + (await getBalance(process.env.HEROSMS_API_KEY)).toFixed(2);
       } catch {}
 
-      await ctx.editMessageText(
+      await safeEdit(ctx, 
         `📊 <b>Statistika</b>\n\n` +
         `👥 Jami foydalanuvchilar: <b>${totalUsers}</b>\n` +
         `📱 Jami aktivatsiyalar: <b>${totalActivations}</b>\n` +
@@ -204,7 +204,7 @@ function adminScene() {
     if (promptMap[data]) {
       await ctx.answerCbQuery();
       waiting[ctx.from.id] = promptMap[data];
-      await ctx.editMessageText(
+      await safeEdit(ctx, 
         `✏️ ${promptMap[data].label}`,
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
       );
