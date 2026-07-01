@@ -20,6 +20,7 @@ const {
   cancelActivationKeyboard,
   backToMain,
   mainMenu,
+  safeEdit,
 } = require('./keyboards');
 const { isAdmin } = require('./admin');
 
@@ -50,7 +51,7 @@ async function showServices(ctx) {
     `Kerakli xizmatni bosing, keyin mamlakatni tanlaysiz.\n\n` +
     `💡 Shoshilmasangiz — pastdagi <b>🔥 Eng arzon takliflar</b> tugmasi orqali eng arzon variantlarni darhol koʻrishingiz mumkin.`;
   if (ctx.callbackQuery) {
-    await ctx.editMessageText(text, { parse_mode: 'HTML', ...servicesKeyboard() });
+    await safeEdit(ctx, text, { parse_mode: 'HTML', ...servicesKeyboard() });
   } else {
     await ctx.reply(text, { parse_mode: 'HTML', ...servicesKeyboard() });
   }
@@ -60,7 +61,7 @@ async function handleServiceSelect(ctx, serviceCode) {
   await ctx.answerCbQuery();
   const svc = findService(serviceCode);
   if (!svc) return;
-  await ctx.editMessageText(
+  await safeEdit(ctx, 
     `${svc.name}\n${DIVIDER}\n🌍 Mamlakatni tanlang:\n\n` +
     `💡 Qaysi mamlakat arzonroqligini bilmasangiz — <b>"🔥 Eng arzonini avtomatik tanlash"</b> tugmasini bosing.`,
     { parse_mode: 'HTML', ...countriesKeyboard(serviceCode) }
@@ -79,7 +80,7 @@ async function renderCountryOffer(ctx, serviceCode, countryCode) {
 
   // Narx aniqlanmasa — foydalanuvchiga yolgʻon/tasodifiy narx koʻrsatmaymiz
   if (!ok) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `⚠️ <b>Narxni aniqlab boʻlmadi</b>\n${DIVIDER}\n` +
       `${svc.name} — ${cnt.name} uchun HeroSMS serveridan javob olinmadi.\n` +
       `Birozdan keyin qaytadan urinib koʻring.`,
@@ -88,7 +89,7 @@ async function renderCountryOffer(ctx, serviceCode, countryCode) {
   }
 
   if (count <= 0 || !(cost > 0)) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `📭 <b>Raqamlar tugagan</b>\n${DIVIDER}\n` +
       `${svc.name} — ${cnt.name} uchun hozircha mavjud raqam yoʻq.\n` +
       `Boshqa mamlakatni tanlang yoki "🔥 Eng arzonini avtomatik tanlash"dan foydalaning.`,
@@ -113,7 +114,7 @@ async function renderCountryOffer(ctx, serviceCode, countryCode) {
       ? `✅ Balans yetarli. Tasdiqlaysizmi?`
       : `❌ Balans yetarli emas. Iltimos, avval balansni toʻldiring.`);
 
-  await ctx.editMessageText(text, {
+  await safeEdit(ctx, text, {
     parse_mode: 'HTML',
     ...(enough ? confirmBuyKeyboard(serviceCode, countryCode) : backToMain()),
   });
@@ -133,7 +134,7 @@ async function handleCheapestForService(ctx, serviceCode) {
 
   const best = await getCheapestForService(process.env.HEROSMS_API_KEY, serviceCode);
   if (!best) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `📭 <b>Hozircha mavjud emas</b>\n${DIVIDER}\n` +
       `${svc.name} uchun hech qaysi mamlakatda raqam topilmadi. Birozdan keyin urinib koʻring.`,
       { parse_mode: 'HTML', ...countriesKeyboard(serviceCode) }
@@ -147,7 +148,7 @@ async function handleCheapestForService(ctx, serviceCode) {
 async function showCheapNumbers(ctx) {
   await ctx.answerCbQuery('⏳ Qidirilmoqda...');
   try {
-    await ctx.editMessageText(
+    await safeEdit(ctx, 
       `🔥 <b>Eng arzon takliflar qidirilmoqda...</b>\n\n⏳ Iltimos, kuting (bir necha soniya)...`,
       { parse_mode: 'HTML' }
     );
@@ -156,7 +157,7 @@ async function showCheapNumbers(ctx) {
   const offers = await getCheapOffers(process.env.HEROSMS_API_KEY);
 
   if (!offers.length) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `❌ <b>Hozircha takliflar topilmadi</b>\n${DIVIDER}\n` +
       `HeroSMS serverida vaqtinchalik nosozlik boʻlishi mumkin. Birozdan keyin qaytadan urinib koʻring.`,
       { parse_mode: 'HTML', ...backToMain() }
@@ -182,7 +183,7 @@ async function showCheapNumbers(ctx) {
   text += `💡 Har qanday taklifni bosib, darhol xarid qilishingiz mumkin.`;
   rows.push([Markup.button.callback('🔙 Bosh menyu', 'back_main')]);
 
-  await ctx.editMessageText(text, { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows) });
+  await safeEdit(ctx, text, { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows) });
 }
 
 async function handleConfirm(ctx, serviceCode, countryCode) {
@@ -196,13 +197,13 @@ async function handleConfirm(ctx, serviceCode, countryCode) {
   const { cost, count, ok } = await getNumberPrice(process.env.HEROSMS_API_KEY, serviceCode, countryCode);
 
   if (!ok) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `⚠️ Narxni tasdiqlab boʻlmadi. Birozdan keyin qaytadan urinib koʻring.`,
       { parse_mode: 'HTML', ...backToMain() }
     );
   }
   if (count <= 0 || !(cost > 0)) {
-    return ctx.editMessageText(
+    return safeEdit(ctx, 
       `📭 Afsuski, bu oraliqda raqamlar tugab qoldi. Boshqa mamlakatni tanlang.`,
       { parse_mode: 'HTML', ...countriesKeyboard(serviceCode) }
     );
@@ -211,7 +212,7 @@ async function handleConfirm(ctx, serviceCode, countryCode) {
   const priceUZS = await calcPrice(cost);
 
   if ((user?.balance || 0) < priceUZS) {
-    return ctx.editMessageText('❌ Balans yetarli emas!', { parse_mode: 'HTML', ...backToMain() });
+    return safeEdit(ctx, '❌ Balans yetarli emas!', { parse_mode: 'HTML', ...backToMain() });
   }
 
   let numData;
@@ -219,7 +220,7 @@ async function handleConfirm(ctx, serviceCode, countryCode) {
     numData = await getNumber(process.env.HEROSMS_API_KEY, serviceCode, countryCode);
   } catch (e) {
     const errText = ERROR_MAP[e.message] || ('❌ Xato: ' + e.message);
-    return ctx.editMessageText(errText, backToMain());
+    return safeEdit(ctx, errText, backToMain());
   }
 
   // Balansdan ayirish
@@ -239,7 +240,7 @@ async function handleConfirm(ctx, serviceCode, countryCode) {
     status: 'pending',
   });
 
-  await ctx.editMessageText(
+  await safeEdit(ctx, 
     `✅ <b>Raqam tayyor!</b>\n${DIVIDER}\n` +
     `📱 Raqam: <code>+${numData.phoneNumber}</code>\n` +
     `🔧 Servis: <b>${svc.name}</b>\n` +
@@ -311,9 +312,9 @@ async function handleCancelActivation(ctx, activationId) {
       clearTimeout(activePolls[ctx.from.id]);
       delete activePolls[ctx.from.id];
     }
-    await ctx.editMessageText('🚫 Aktivatsiya bekor qilindi.', backToMain());
+    await safeEdit(ctx, '🚫 Aktivatsiya bekor qilindi.', backToMain());
   } catch (e) {
-    await ctx.editMessageText('❌ Bekor qilishda xato: ' + e.message, backToMain());
+    await safeEdit(ctx, '❌ Bekor qilishda xato: ' + e.message, backToMain());
   }
 }
 
