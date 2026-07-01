@@ -17,6 +17,7 @@ async function showAdminPanel(ctx) {
     `💳 Karta: <b>${s.card_number}</b>\n` +
     `👤 Egasi: <b>${s.card_holder}</b>\n` +
     `📢 Majburiy kanallar: <b>${channels.length ? channels.length + ' ta' : 'oʻchirilgan'}</b>\n` +
+    `🎁 Referal bonusi: <b>${(s.referral_bonus_uzs || 0).toLocaleString()} so'm</b>\n` +
     `🖼 Bosh menyu rasmi: <b>${s.main_menu_image ? 'oʻrnatilgan' : 'oʻrnatilmagan'}</b>\n` +
     `💬 Support: <b>${s.support_username}</b>`;
 
@@ -70,6 +71,7 @@ function adminScene() {
     adm_starsrate:  { key: 'star_to_uzs',        label: "1 Telegram Star necha so'mligini kiriting (masalan: 220)" },
     adm_card:       { key: '_card_combo',        label: 'Karta raqami va egasini kiriting:\nFormat: KARTA_RAQAMI|Ism Familiya\nMasalan: 8600 1234 5678 9012|Karimov Karim' },
     adm_support:    { key: 'support_username',   label: 'Support username kiriting (masalan: @admin_support)' },
+    adm_refbonus:   { key: 'referral_bonus_uzs', label: "Referal uchun beriladigan bonus miqdorini kiriting, so'mda (masalan: 3000)" },
   };
 
   // Inline button handler
@@ -258,7 +260,7 @@ function adminScene() {
         await ctx.reply(`✅ Kanal qoʻshildi: ${channel}\n\n❗️Eslatma: botni shu kanalga admin qilib qoʻyishni unutmang, aks holda obuna tekshiruvi ishlamaydi.\n\n📋 Jami kanallar: ${channels.length} ta`, backToAdmin());
       } else {
         const numVal = parseFloat(val);
-        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs'].includes(w.key)) {
+        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs', 'referral_bonus_uzs'].includes(w.key)) {
           if (isNaN(numVal) || numVal < 0) {
             return ctx.reply("❌ Iltimos, to'g'ri raqam kiriting.", backToAdmin());
           }
