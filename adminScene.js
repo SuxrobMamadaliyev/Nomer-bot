@@ -182,25 +182,41 @@ function adminScene() {
       const totalActivations = await Activation.countDocuments();
       const successAct = await Activation.countDocuments({ status: 'success' });
 
-      const agg = await User.aggregate([
-        { $group: { _id: null, totalSpent: { $sum: '$totalSpent' }, totalFee: { $sum: '$totalFeeCollected' } } },
+      // Sotuvdan tushgan pul — faqat SMS kelib, muvaffaqiyatli yakunlangan
+      // aktivatsiyalar hisobga olinadi (pending/bekor/timeout hisoblanmaydi).
+      const salesAgg = await Activation.aggregate([
+        { $match: { status: 'success' } },
+        { $group: { _id: null, total: { $sum: '$pricePaid' } } },
       ]);
-      const totalSpent = agg[0]?.totalSpent || 0;
-      const totalFee = agg[0]?.totalFee || 0;
+      const totalSales = salesAgg[0]?.total || 0;
+
+      const feeAgg = await User.aggregate([
+        { $group: { _id: null, totalFee: { $sum: '$totalFeeCollected' } } },
+      ]);
+      const totalFee = feeAgg[0]?.totalFee || 0;
 
       let heroBalance = '—';
       try {
         heroBalance = '$' + (await getBalance(process.env.HEROSMS_API_KEY)).toFixed(2);
       } catch {}
 
+      let starsBalance = '—';
+      try {
+        const res = await ctx.telegram.callApi('getMyStarBalance', {});
+        starsBalance = `${res.amount ?? 0}⭐`;
+      } catch (e) {
+        console.error('Stars balansini olishda xato:', e.message);
+      }
+
       await safeEdit(ctx, 
         `📊 <b>Statistika</b>\n\n` +
         `👥 Jami foydalanuvchilar: <b>${totalUsers}</b>\n` +
         `📱 Jami aktivatsiyalar: <b>${totalActivations}</b>\n` +
         `✅ Muvaffaqiyatli: <b>${successAct}</b>\n\n` +
-        `💵 Raqamlardan tushgan (sotuv): <b>${totalSpent.toLocaleString()} so'm</b>\n` +
+        `💵 Raqamlardan tushgan (sotuv): <b>${totalSales.toLocaleString()} so'm</b>\n` +
         `📉 To'ldirish komissiyasidan: <b>${totalFee.toLocaleString()} so'm</b>\n\n` +
-        `💰 HeroSMS balansi: <b>${heroBalance}</b>`,
+        `💰 HeroSMS balansi: <b>${heroBalance}</b>\n` +
+        `⭐ Bot Stars balansi: <b>${starsBalance}</b>`,
         { parse_mode: 'HTML', ...backToAdmin() }
       );
       return;
