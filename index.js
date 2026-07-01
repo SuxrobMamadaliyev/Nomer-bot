@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 
 const { User, Activation } = require('./models');
 const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
-const { mainMenu, backToMain, sendMainMenu } = require('./keyboards');
+const { mainMenu, backToMain, sendMainMenu, safeEdit } = require('./keyboards');
 const { requireChannelSub } = require('./channelSub');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
@@ -118,7 +118,7 @@ bot.action('help', async ctx => {
   await ctx.answerCbQuery();
   const { getSetting } = require('./settings');
   const support = await getSetting('support_username');
-  await ctx.editMessageText(
+  await safeEdit(ctx, 
     `❓ <b>Yordam</b>\n\n` +
     `🔥 "Arzon nomerlar" — barcha xizmatlar boʻyicha eng arzon takliflar roʻyxati\n` +
     `📱 "Raqam olish" — servis va mamlakatni tanlab virtual raqam sotib olish\n` +
@@ -142,7 +142,7 @@ bot.action('cabinet', async ctx => {
 
   const refLink = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
 
-  await ctx.editMessageText(
+  await safeEdit(ctx, 
     `👤 <b>Kabinet</b>\n\n` +
     `🆔 ID: <code>${ctx.from.id}</code>\n` +
     `👛 Balans: <b>${(user?.balance || 0).toLocaleString()} so'm</b>\n` +
