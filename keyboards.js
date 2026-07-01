@@ -3,12 +3,13 @@ const { SERVICES, COUNTRIES } = require('./herosms');
 
 function mainMenu(isAdmin = false) {
   const rows = [
+    [Markup.button.callback('🔥 Arzon nomerlar', 'cheap_numbers')],
     [
       Markup.button.callback('📱 Raqam olish', 'buy_number'),
       Markup.button.callback('👤 Kabinet', 'cabinet'),
     ],
     [
-      Markup.button.callback('👛 Balans to\'ldirish', 'topup'),
+      Markup.button.callback("👛 Balans to'ldirish", 'topup'),
       Markup.button.callback('❓ Yordam', 'help'),
     ],
   ];
@@ -23,10 +24,11 @@ function servicesKeyboard() {
     Markup.button.callback(s.name, `svc_${s.code}`)
   );
   const rows = [];
-  for (let i = 0; i < buttons.length; i += 2) {
-    rows.push(buttons.slice(i, i + 2));
+  for (let i = 0; i < buttons.length; i += 3) {
+    rows.push(buttons.slice(i, i + 3));
   }
-  rows.push([Markup.button.callback('🔙 Orqaga', 'back_main')]);
+  rows.push([Markup.button.callback('🔥 Eng arzon takliflar', 'cheap_numbers')]);
+  rows.push([Markup.button.callback('🔙 Bosh menyu', 'back_main')]);
   return Markup.inlineKeyboard(rows);
 }
 
@@ -35,9 +37,10 @@ function countriesKeyboard(serviceCode) {
     Markup.button.callback(c.name, `cnt_${serviceCode}_${c.code}`)
   );
   const rows = [];
-  for (let i = 0; i < buttons.length; i += 2) {
-    rows.push(buttons.slice(i, i + 2));
+  for (let i = 0; i < buttons.length; i += 3) {
+    rows.push(buttons.slice(i, i + 3));
   }
+  rows.push([Markup.button.callback('🔥 Eng arzonini avtomatik tanlash', `cheapest_${serviceCode}`)]);
   rows.push([Markup.button.callback('🔙 Servislar', 'buy_number')]);
   return Markup.inlineKeyboard(rows);
 }
