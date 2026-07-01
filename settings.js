@@ -7,9 +7,9 @@ const DEFAULTS = {
   star_to_uzs: 220,            // 1 Telegram Star = ? so'm (Stars orqali to'ldirishda balansga shu kursda qo'shiladi)
   min_balance_uzs: 5000,       // Minimal balans (so'm)
   referral_bonus_uzs: 3000,    // Referal uchun bonus (so'm)
-  card_number: '8600 0000 0000 0000',
-  card_holder: 'Abdullayev Abdulla',
-  support_username: '@admin_support',
+  card_number: '9860 1678 4936 3665',
+  card_holder: 'Suhrob M',
+  support_username: '@uzbrry',
   force_sub_channel: '',       // Majburiy obuna kanal username (masalan: @mychannel). Bo'sh bo'lsa — o'chirilgan.
 };
 
