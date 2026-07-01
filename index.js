@@ -307,25 +307,37 @@ app.get('/', (req, res) => res.status(200).send('Bot ishlayapti'));
 
 app.use(bot.webhookCallback(WEBHOOK_PATH));
 
-async function setWebhookWithRetry(retries = 5) {
+async function setWebhookWithRetry(retries = 8, delaySeconds = 3) {
   try {
     await bot.telegram.setWebhook(`${DOMAIN}${WEBHOOK_PATH}`);
     console.log(`✅ Webhook o'rnatildi: ${DOMAIN}${WEBHOOK_PATH}`);
   } catch (err) {
-    const retryAfter = err?.response?.parameters?.retry_after || 2;
-    if (retries > 0 && err?.response?.error_code === 429) {
-      console.warn(`⏳ Telegram rate-limit (429). ${retryAfter}s kutib qayta urinish... (qolgan: ${retries})`);
-      await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
-      return setWebhookWithRetry(retries - 1);
+    const retryAfter = err?.response?.parameters?.retry_after || delaySeconds;
+    console.error(`❌ Webhook o'rnatishda xato: ${err.message}`);
+    if (retries > 0) {
+      console.warn(`⏳ ${retryAfter}s kutib qayta urinish... (qolgan urinishlar: ${retries})`);
+      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      return setWebhookWithRetry(retries - 1, Math.min(delaySeconds * 2, 30));
     }
-    console.error('❌ Webhook o\'rnatilmadi:', err.message);
-    process.exit(1);
+    // Urinishlar tugadi — lekin serverni o'chirmaymiz, chunki HTTP server
+    // (/ping, /) ishlab turishi kerak; Render health-check shu orqali o'tadi.
+    // Webhook keyinroq /set-webhook orqali qo'lda o'rnatilishi mumkin.
+    console.error('❌ Webhook barcha urinishlardan keyin ham o\'rnatilmadi. Server ishlashda davom etadi.');
   }
 }
 
+app.get('/set-webhook', async (req, res) => {
+  try {
+    await bot.telegram.setWebhook(`${DOMAIN}${WEBHOOK_PATH}`);
+    res.status(200).send('✅ Webhook qayta o\'rnatildi');
+  } catch (err) {
+    res.status(500).send('❌ Xato: ' + err.message);
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`🌐 Server ${PORT}-portda ishga tushdi`);
-  await setWebhookWithRetry();
+  setWebhookWithRetry(); // await qilinmaydi — server darhol ishga tushadi, webhook fonda o'rnatiladi
   console.log('🤖 Bot ishga tushdi (webhook)');
 });
 
