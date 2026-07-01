@@ -13,6 +13,8 @@ const {
   showServices,
   handleServiceSelect,
   handleCountrySelect,
+  handleCheapestForService,
+  showCheapNumbers,
   handleConfirm,
   handleCancelActivation,
 } = require('./buyScene');
@@ -76,11 +78,15 @@ bot.start(async ctx => {
     }
   }
 
+  const userDoc = await User.findOne({ telegramId: ctx.from.id });
+  const balance = userDoc?.balance || 0;
+
   await ctx.reply(
     `👋 Assalomu alaykum, ${ctx.from.first_name}!\n\n` +
     `📱 Bu bot orqali turli xizmatlar uchun virtual raqamlar sotib olishingiz mumkin.\n\n` +
-    `Quyidagi menyudan foydalaning:`,
-    mainMenu(admin)
+    `👛 Balansingiz: <b>${balance.toLocaleString()} so'm</b>\n\n` +
+    `🔥 Eng arzon takliflarni koʻrish uchun pastdagi tugmani bosing.`,
+    { parse_mode: 'HTML', ...mainMenu(admin) }
   );
 });
 
@@ -103,10 +109,13 @@ bot.action('check_sub', async ctx => {
 bot.action('back_main', async ctx => {
   await ctx.answerCbQuery();
   const admin = isAdmin(ctx.from.id);
+  const userDoc = await User.findOne({ telegramId: ctx.from.id });
+  const balance = userDoc?.balance || 0;
+  const text = `🏠 <b>Bosh menyu</b>\n\n👛 Balansingiz: <b>${balance.toLocaleString()} so'm</b>`;
   try {
-    await ctx.editMessageText('🏠 <b>Bosh menyu</b>', { parse_mode: 'HTML', ...mainMenu(admin) });
+    await ctx.editMessageText(text, { parse_mode: 'HTML', ...mainMenu(admin) });
   } catch {
-    await ctx.reply('🏠 <b>Bosh menyu</b>', { parse_mode: 'HTML', ...mainMenu(admin) });
+    await ctx.reply(text, { parse_mode: 'HTML', ...mainMenu(admin) });
   }
 });
 
@@ -116,9 +125,11 @@ bot.action('help', async ctx => {
   const support = await getSetting('support_username');
   await ctx.editMessageText(
     `❓ <b>Yordam</b>\n\n` +
-    `📱 "Raqam olish" — virtual raqam sotib olish\n` +
-    `👤 "Kabinet" — balans va tarix\n` +
-    `👛 "Balans to'ldirish" — karta orqali to'lov\n\n` +
+    `🔥 "Arzon nomerlar" — barcha xizmatlar boʻyicha eng arzon takliflar roʻyxati\n` +
+    `📱 "Raqam olish" — servis va mamlakatni tanlab virtual raqam sotib olish\n` +
+    `👤 "Kabinet" — balans va xaridlar tarixi\n` +
+    `👛 "Balans to'ldirish" — Telegram Stars yoki karta orqali to'lov\n\n` +
+    `💡 Servis tanlaganingizdan keyin "Eng arzonini avtomatik tanlash" tugmasi eng arzon mamlakatni oʻzi topib beradi.\n\n` +
     `💬 Savollar bo'yicha: ${support}`,
     { parse_mode: 'HTML', ...backToMain() }
   );
@@ -154,8 +165,16 @@ bot.action('buy_number', async ctx => {
   await showServices(ctx);
 });
 
+bot.action('cheap_numbers', async ctx => {
+  await showCheapNumbers(ctx);
+});
+
 bot.action(/^svc_(.+)$/, async ctx => {
   await handleServiceSelect(ctx, ctx.match[1]);
+});
+
+bot.action(/^cheapest_(.+)$/, async ctx => {
+  await handleCheapestForService(ctx, ctx.match[1]);
 });
 
 bot.action(/^cnt_(.+)_(.+)$/, async ctx => {
