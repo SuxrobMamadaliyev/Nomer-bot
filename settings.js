@@ -32,4 +32,12 @@ async function getAllSettings() {
   return result;
 }
 
-module.exports = { getSetting, setSetting, getAllSettings, DEFAULTS };
+// Narx hisoblash: dollardagi (HeroSMS) narxni so'mga o'tkazib, markup qo'shadi
+async function calcPriceUZS(costUSD) {
+  const rate = await getSetting('usd_to_uzs');
+  const markup = await getSetting('markup_percent');
+  const base = costUSD * rate;
+  return Math.ceil(base * (1 + markup / 100) / 100) * 100; // 100 so'mga yaxlitlash
+}
+
+module.exports = { getSetting, setSetting, getAllSettings, calcPriceUZS, DEFAULTS };
