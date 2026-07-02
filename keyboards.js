@@ -88,11 +88,31 @@ function adminPanelKeyboard() {
     [Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus')],
     [Markup.button.callback('🧾 Isbot kanali', 'adm_proofchannel')],
     [Markup.button.callback('🖼 Bosh menyu rasmi', 'adm_image')],
+    [Markup.button.callback('👥 Foydalanuvchilar balansi', 'adm_balances')],
     [Markup.button.callback('📊 Statistika', 'adm_stats')],
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
 }
 
+
+function balancesMenuKeyboard(page, totalPages) {
+  const navRow = [];
+  if (page > 0) navRow.push(Markup.button.callback('⬅️ Oldingi', `adm_balances_page_${page - 1}`));
+  if (page < totalPages - 1) navRow.push(Markup.button.callback('Keyingi ➡️', `adm_balances_page_${page + 1}`));
+
+  const rows = [];
+  if (navRow.length) rows.push(navRow);
+  rows.push([Markup.button.callback('🗑 Barcha balanslarni 0 qilish', 'adm_balances_reset_confirm')]);
+  rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+function balancesResetConfirmKeyboard() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Ha, hammasini 0 qilish', 'adm_balances_reset_do')],
+    [Markup.button.callback('❌ Bekor qilish', 'adm_balances')],
+  ]);
+}
 
 function backToAdmin() {
   return Markup.inlineKeyboard([[Markup.button.callback('🔙 Admin panel', 'admin_panel')]]);
@@ -168,6 +188,8 @@ module.exports = {
   countriesKeyboard,
   allCountriesKeyboard,
   adminPanelKeyboard,
+  balancesMenuKeyboard,
+  balancesResetConfirmKeyboard,
   backToAdmin,
   backToMain,
   confirmBuyKeyboard,
