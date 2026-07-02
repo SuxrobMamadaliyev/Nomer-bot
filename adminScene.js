@@ -1,6 +1,6 @@
 const { Scenes, Markup } = require('telegraf');
 const { getSetting, setSetting, getAllSettings } = require('./settings');
-const { adminPanelKeyboard, backToAdmin, safeEdit } = require('./keyboards');
+const { adminPanelKeyboard, balancesMenuKeyboard, balancesResetConfirmKeyboard, backToAdmin, safeEdit } = require('./keyboards');
 const { User, Activation } = require('./models');
 const { getBalance } = require('./herosms');
 
@@ -28,6 +28,38 @@ async function showAdminPanel(ctx) {
   } else {
     await ctx.reply(text, { parse_mode: 'HTML', ...keyboard });
   }
+}
+
+const BALANCES_PAGE_SIZE = 15;
+
+// Foydalanuvchilar balanslari roʻyxatini sahifalab koʻrsatadi
+async function showBalancesPage(ctx, page = 0) {
+  const totalUsers = await User.countDocuments();
+  const totalPages = Math.max(1, Math.ceil(totalUsers / BALANCES_PAGE_SIZE));
+  page = Math.min(Math.max(0, page), totalPages - 1);
+
+  const users = await User.find({})
+    .sort({ balance: -1 })
+    .skip(page * BALANCES_PAGE_SIZE)
+    .limit(BALANCES_PAGE_SIZE)
+    .lean();
+
+  const totalAgg = await User.aggregate([{ $group: { _id: null, total: { $sum: '$balance' } } }]);
+  const totalBalance = totalAgg[0]?.total || 0;
+
+  const lines = users.map((u, i) => {
+    const num = page * BALANCES_PAGE_SIZE + i + 1;
+    const name = u.username ? `@${u.username}` : (u.fullName || `ID:${u.telegramId}`);
+    return `${num}. ${name} — <b>${(u.balance || 0).toLocaleString()} so'm</b>`;
+  });
+
+  const text =
+    `👥 <b>Foydalanuvchilar balansi</b>\n\n` +
+    (lines.length ? lines.join('\n') : 'Foydalanuvchilar topilmadi.') +
+    `\n\n💰 Jami balans (barcha foydalanuvchilar): <b>${totalBalance.toLocaleString()} so'm</b>\n` +
+    `📄 Sahifa: ${page + 1}/${totalPages}`;
+
+  await safeEdit(ctx, text, { parse_mode: 'HTML', ...balancesMenuKeyboard(page, totalPages) });
 }
 
 function channelMenuKeyboard(channels) {
@@ -174,6 +206,35 @@ function adminScene() {
         '🗑 Bosh menyu rasmi oʻchirildi.',
         { parse_mode: 'HTML', ...backToAdmin() }
       );
+    }
+
+    if (data === 'adm_balances') {
+      await ctx.answerCbQuery();
+      return showBalancesPage(ctx, 0);
+    }
+
+    if (data.startsWith('adm_balances_page_')) {
+      await ctx.answerCbQuery();
+      const page = parseInt(data.replace('adm_balances_page_', ''), 10) || 0;
+      return showBalancesPage(ctx, page);
+    }
+
+    if (data === 'adm_balances_reset_confirm') {
+      await ctx.answerCbQuery();
+      return safeEdit(ctx,
+        `⚠️ <b>Diqqat!</b>\n\nHaqiqatan ham BARCHA foydalanuvchilarning balansini 0 ga tushirmoqchimisiz?\nBu amalni ortga qaytarib boʻlmaydi.`,
+        { parse_mode: 'HTML', ...balancesResetConfirmKeyboard() }
+      );
+    }
+
+    if (data === 'adm_balances_reset_do') {
+      await ctx.answerCbQuery('✅ Bajarildi');
+      const result = await User.updateMany({}, { $set: { balance: 0 } });
+      await safeEdit(ctx,
+        `✅ Barcha foydalanuvchilar balansi 0 qilindi.\n👥 Yangilangan foydalanuvchilar: <b>${result.modifiedCount ?? result.nModified ?? 0}</b>`,
+        { parse_mode: 'HTML', ...backToAdmin() }
+      );
+      return;
     }
 
     if (data === 'adm_stats') {
