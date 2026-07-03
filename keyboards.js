@@ -13,6 +13,7 @@ function mainMenu(isAdmin = false) {
       Markup.button.callback("👛 Balans to'ldirish", 'topup'),
       Markup.button.callback('❓ Yordam', 'help'),
     ],
+    [Markup.button.callback('🎁 Referal', 'referral_info')],
   ];
   if (isAdmin) {
     rows.push([Markup.button.callback('⚙️ Admin panel', 'admin_panel')]);
@@ -48,25 +49,53 @@ function adminPanelKeyboard() {
       Markup.button.callback('📢 Majburiy kanallar', 'adm_channel'),
     ],
     [Markup.button.callback('🔢 Raqamlar bazasi', 'adm_numbers')],
-    [Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus')],
+    [
+      Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus'),
+      Markup.button.callback('💵 Minimal depozit', 'adm_mindeposit'),
+    ],
     [Markup.button.callback('🧾 Isbot kanali', 'adm_proofchannel')],
     [Markup.button.callback('🖼 Bosh menyu rasmi', 'adm_image')],
-    [Markup.button.callback('👥 Foydalanuvchilar balansi', 'adm_balances')],
+    [Markup.button.callback('👥 Foydalanuvchilar / Balans', 'adm_balances')],
+    [Markup.button.callback('🔍 Foydalanuvchini boshqarish', 'adm_user_search')],
     [Markup.button.callback('📣 Barchaga xabar yuborish', 'adm_broadcast')],
     [Markup.button.callback('📊 Statistika', 'adm_stats')],
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
 }
 
-function balancesMenuKeyboard(page, totalPages) {
+function balancesMenuKeyboard(page, totalPages, users = []) {
   const navRow = [];
   if (page > 0) navRow.push(Markup.button.callback('⬅️ Oldingi', `adm_balances_page_${page - 1}`));
   if (page < totalPages - 1) navRow.push(Markup.button.callback('Keyingi ➡️', `adm_balances_page_${page + 1}`));
 
   const rows = [];
+  // Har bir foydalanuvchi uchun boshqaruv tugmasi (balans berish/ayirish, ban/unban)
+  users.forEach(u => {
+    const name = u.username ? `@${u.username}` : (u.fullName || `ID:${u.telegramId}`);
+    const banMark = u.isBanned ? '🚫 ' : '';
+    rows.push([Markup.button.callback(`${banMark}${name} — ${(u.balance || 0).toLocaleString()} so'm`, `adm_uview_${u.telegramId}`)]);
+  });
   if (navRow.length) rows.push(navRow);
+  rows.push([Markup.button.callback('🔍 ID/username boʻyicha qidirish', 'adm_user_search')]);
   rows.push([Markup.button.callback('🗑 Barcha balanslarni 0 qilish', 'adm_balances_reset_confirm')]);
   rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// Bitta foydalanuvchini boshqarish (balans qo'shish/ayirish, ban/unban)
+function userDetailKeyboard(telegramId, isBanned) {
+  const rows = [
+    [
+      Markup.button.callback('➕ Balans qoʻshish', `adm_uaddbal_${telegramId}`),
+      Markup.button.callback('➖ Balans ayirish', `adm_usubbal_${telegramId}`),
+    ],
+  ];
+  rows.push([
+    isBanned
+      ? Markup.button.callback('✅ Ban olib tashlash', `adm_uunban_${telegramId}`)
+      : Markup.button.callback('🚫 Ban qilish', `adm_uban_${telegramId}`),
+  ]);
+  rows.push([Markup.button.callback('🔙 Roʻyxatga qaytish', 'adm_balances')]);
   return Markup.inlineKeyboard(rows);
 }
 
@@ -202,6 +231,7 @@ module.exports = {
   adminPanelKeyboard,
   balancesMenuKeyboard,
   balancesResetConfirmKeyboard,
+  userDetailKeyboard,
   backToAdmin,
   backToMain,
   confirmBuyKeyboard,
