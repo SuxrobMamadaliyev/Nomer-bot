@@ -57,7 +57,8 @@ function topupScene() {
       const s = await getAllSettings();
       return safeEdit(ctx, 
         `💳 <b>Karta orqali to'ldirish</b>\n\n` +
-        `ℹ️ To'ldirishda <b>${s.topup_fee_percent}%</b> xizmat haqi ushlab qolinadi.\n\n` +
+        `ℹ️ To'ldirishda <b>${s.topup_fee_percent}%</b> xizmat haqi ushlab qolinadi.\n` +
+        `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
         `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
       );
@@ -70,7 +71,8 @@ function topupScene() {
       return safeEdit(ctx, 
         `⭐ <b>Telegram Stars orqali to'ldirish</b>\n\n` +
         `ℹ️ Kurs: 1 ⭐ = ${s.star_to_uzs.toLocaleString()} so'm\n` +
-        `✅ Bu usulda komissiya olinmaydi, balans darhol avtomatik to'ldiriladi.\n\n` +
+        `✅ Bu usulda komissiya olinmaydi, balans darhol avtomatik to'ldiriladi.\n` +
+        `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
         `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
       );
@@ -89,11 +91,11 @@ function topupScene() {
     if (!w || w.step !== 'amount') return;
 
     const amount = parseInt(ctx.message.text.replace(/\D/g, ''));
-    if (!amount || amount < 1000) {
-      return ctx.reply("❌ Iltimos, to'g'ri summa kiriting (kamida 1000 so'm).");
-    }
-
     const s = await getAllSettings();
+    const minDeposit = s.min_balance_uzs || 1000;
+    if (!amount || amount < minDeposit) {
+      return ctx.reply(`❌ Iltimos, to'g'ri summa kiriting (kamida ${minDeposit.toLocaleString()} so'm).`);
+    }
 
     if (w.method === 'stars') {
       // Stars orqali to'lov — narxni Stars'ga aylantiramiz
