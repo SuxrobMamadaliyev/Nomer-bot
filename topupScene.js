@@ -3,20 +3,35 @@ const { User } = require('./models');
 const { getAllSettings } = require('./settings');
 const { backToMain, safeEdit } = require('./keyboards');
 const { ADMIN_IDS } = require('./admin');
+const tonPayment = require('./tonPayment');
 
 // Waiting state: telegramId -> { step, method, amount, fee, credited }
 const waiting = {};
 
-function methodKeyboard() {
-  return Markup.inlineKeyboard([
+function methodKeyboard(tonEnabled) {
+  const rows = [
     [Markup.button.callback('⭐ Telegram Stars (avtomatik)', 'topup_method_stars')],
-    [Markup.button.callback('💳 Karta orqali (chek bilan)', 'topup_method_card')],
-    [Markup.button.callback('❌ Bekor', 'back_main')],
+  ];
+  if (tonEnabled) {
+    rows.push([Markup.button.callback('💎 TON (avtomatik)', 'topup_method_ton')]);
+  }
+  rows.push([Markup.button.callback('💳 Karta orqali (chek bilan)', 'topup_method_card')]);
+  rows.push([Markup.button.callback('❌ Bekor', 'back_main')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+function tonPayKeyboard(link, invoiceId) {
+  return Markup.inlineKeyboard([
+    [Markup.button.url('💎 Tonkeeper orqali toʻlash', link)],
+    [Markup.button.callback('✅ Toʻlovni tekshirish', `ton_check_${invoiceId}`)],
+    [Markup.button.callback('❌ Bekor qilish', 'back_main')],
   ]);
 }
 
 async function showTopupMenu(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
+  const s = await getAllSettings();
+  const tonEnabled = !!(s.ton_wallet_address && s.ton_to_uzs > 0);
   const text =
     `👛 <b>Balans to'ldirish</b>\n\n` +
     `💰 Joriy balans: <b>${(user?.balance || 0).toLocaleString()} so'm</b>\n\n` +
@@ -25,9 +40,9 @@ async function showTopupMenu(ctx) {
   waiting[ctx.from.id] = { step: 'choose_method' };
 
   if (ctx.callbackQuery) {
-    await safeEdit(ctx, text, { parse_mode: 'HTML', ...methodKeyboard() });
+    await safeEdit(ctx, text, { parse_mode: 'HTML', ...methodKeyboard(tonEnabled) });
   } else {
-    await ctx.reply(text, { parse_mode: 'HTML', ...methodKeyboard() });
+    await ctx.reply(text, { parse_mode: 'HTML', ...methodKeyboard(tonEnabled) });
   }
 }
 
@@ -49,6 +64,23 @@ function topupScene() {
       await ctx.answerCbQuery();
       delete waiting[ctx.from.id];
       return ctx.scene.leave();
+    }
+
+    if (data === 'topup_method_ton') {
+      await ctx.answerCbQuery();
+      const s = await getAllSettings();
+      if (!s.ton_wallet_address || !s.ton_to_uzs) {
+        return safeEdit(ctx, "❌ TON orqali toʻldirish hozircha sozlanmagan. Boshqa usulni tanlang.", { parse_mode: 'HTML', ...methodKeyboard(false) });
+      }
+      waiting[ctx.from.id] = { step: 'amount', method: 'ton' };
+      return safeEdit(ctx,
+        `💎 <b>TON orqali toʻldirish</b>\n\n` +
+        `ℹ️ Kurs: 1 TON = ${s.ton_to_uzs.toLocaleString()} so'm\n` +
+        `✅ Toʻlov avtomatik aniqlanadi, hech qanday chek yuborish shart emas.\n` +
+        `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
+        `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+      );
     }
 
     if (data === 'topup_method_card') {
@@ -81,6 +113,30 @@ function topupScene() {
     if (data === 'topup') {
       await ctx.answerCbQuery();
       return showTopupMenu(ctx);
+    }
+
+    if (data.startsWith('ton_check_')) {
+      const invoiceId = data.replace('ton_check_', '');
+      await ctx.answerCbQuery('⏳ Tekshirilmoqda...');
+      try {
+        await tonPayment.checkPendingInvoices(); // navbatdan tashqari darhol tekshiradi
+        const invoice = await tonPayment.getInvoiceById(invoiceId);
+        if (!invoice) {
+          return ctx.reply('❌ Invoys topilmadi.', backToMain());
+        }
+        if (invoice.status === 'paid') {
+          return ctx.reply(
+            `✅ Toʻlov allaqachon tasdiqlangan!\n➕ Balansga qoʻshildi: ${invoice.amountUZS.toLocaleString()} so'm`,
+            backToMain()
+          );
+        }
+        if (invoice.status === 'expired') {
+          return ctx.reply('⏰ Bu invoysning muddati tugagan. Iltimos, qaytadan urinib koʻring.', backToMain());
+        }
+        return ctx.reply("⏳ Toʻlov hali aniqlanmadi. Toʻlovni amalga oshirgan boʻlsangiz, bir necha soniya kutib qaytadan tekshiring.");
+      } catch (e) {
+        return ctx.reply('❌ Tekshirishda xato: ' + e.message);
+      }
     }
 
     return next();
@@ -118,6 +174,26 @@ function topupScene() {
         );
       } catch (e) {
         await ctx.reply('❌ Hisob-faktura yaratishda xato: ' + e.message, backToMain());
+      }
+      return;
+    }
+
+    if (w.method === 'ton') {
+      delete waiting[ctx.from.id];
+      try {
+        const { invoice, link } = await tonPayment.createInvoice(ctx.from.id, amount);
+        await ctx.reply(
+          `💎 <b>TON orqali toʻlov</b>\n\n` +
+          `💰 Toʻlanadigan summa: <b>${invoice.amountTon} TON</b> (≈ ${amount.toLocaleString()} so'm)\n\n` +
+          `1️⃣ Pastdagi "Tonkeeper orqali toʻlash" tugmasini bosing — ilova avtomatik ochilib, manzil, summa va izoh oldindan toʻldirilgan boʻladi.\n` +
+          `2️⃣ Tonkeeperda toʻlovni tasdiqlang.\n` +
+          `3️⃣ Toʻlov bir necha soniyada avtomatik aniqlanadi va balansingiz toʻldiriladi.\n\n` +
+          `❗️ Izohni (comment) oʻchirmang — toʻlovingiz aynan shu orqali aniqlanadi.\n` +
+          `⏳ Invoys 30 daqiqa amal qiladi.`,
+          { parse_mode: 'HTML', ...tonPayKeyboard(link, invoice._id) }
+        );
+      } catch (e) {
+        await ctx.reply('❌ ' + e.message, backToMain());
       }
       return;
     }
