@@ -32,6 +32,9 @@ async function showAdminPanel(ctx) {
     `👤 Egasi: <b>${s.card_holder}</b>\n` +
     `📢 Majburiy kanallar: <b>${channels.length ? channels.length + ' ta' : 'oʻchirilgan'}</b>\n` +
     `🎁 Referal bonusi: <b>${(s.referral_bonus_uzs || 0).toLocaleString()} so'm</b>\n` +
+    `💵 Minimal depozit: <b>${(s.min_balance_uzs || 0).toLocaleString()} so'm</b>\n` +
+    `💎 TON hamyon: <b>${s.ton_wallet_address || 'oʻrnatilmagan'}</b>\n` +
+    `💎 TON kursi: <b>${s.ton_to_uzs ? '1 TON = ' + s.ton_to_uzs.toLocaleString() + " so'm" : 'oʻrnatilmagan (oʻchirilgan)'}</b>\n` +
     `🖼 Bosh menyu rasmi: <b>${s.main_menu_image ? 'oʻrnatilgan' : 'oʻrnatilmagan'}</b>\n` +
     `🧾 Isbot kanali: <b>${s.proof_channel || 'oʻrnatilmagan'}</b>\n` +
     `💬 Support: <b>${s.support_username}</b>`;
@@ -201,6 +204,8 @@ function adminScene() {
     adm_support:    { key: 'support_username',   label: 'Support username kiriting (masalan: @admin_support)' },
     adm_refbonus:   { key: 'referral_bonus_uzs', label: "Referal uchun beriladigan bonus miqdorini kiriting, so'mda (masalan: 100)" },
     adm_mindeposit: { key: 'min_balance_uzs',    label: "Minimal depozit (to'ldirish) summasini kiriting, so'mda (masalan: 5000)" },
+    adm_tonwallet:  { key: 'ton_wallet_address', label: "TON hamyon manzilini kiriting (masalan: UQC...).\n❗️Toʻlovlar aynan shu manzilga kelishi kutiladi." },
+    adm_tonrate:    { key: 'ton_to_uzs',         label: "1 TON necha soʻmligini kiriting (masalan: 25000)" },
     adm_proofchannel: {
       key: 'proof_channel',
       label: "Isbot kanali username kiriting (masalan: @kanalim).\n❗️Bot shu kanalda admin boʻlishi shart, aks holda postlar yuborilmaydi.\nOʻchirish uchun \"-\" belgisini yuboring.",
@@ -863,7 +868,7 @@ function adminScene() {
         }
       } else {
         const numVal = parseFloat(val);
-        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs', 'referral_bonus_uzs', 'min_balance_uzs'].includes(w.key)) {
+        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs', 'referral_bonus_uzs', 'min_balance_uzs', 'ton_to_uzs'].includes(w.key)) {
           if (isNaN(numVal) || numVal < 0) {
             return ctx.reply("❌ Iltimos, to'g'ri raqam kiriting.", backToAdmin());
           }
