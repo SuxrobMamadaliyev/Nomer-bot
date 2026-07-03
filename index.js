@@ -12,6 +12,7 @@ const userbot = require('./userbot');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
 const { topupScene, showTopupMenu, approveTopup, creditStarsPayment } = require('./topupScene');
+const tonPayment = require('./tonPayment');
 const {
   setBotInstance,
   showCountries,
@@ -48,6 +49,7 @@ mongoose
 // Bot qayta ishga tushsa ham (Render uxlab qolishi / qayta deploy) pending aktivatsiyalarni
 // vaqti o'tgach avtomatik bekor qilib, pulni qaytarib turadi.
 startExpiryWatchdog(bot);
+tonPayment.startTonWatcher(bot); // TON blokcheynidagi to'lovlarni fonda kuzatib turadi
 
 // ---- Scenes ----
 const stage = new Scenes.Stage([adminScene(), topupScene()]);
