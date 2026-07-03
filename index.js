@@ -17,6 +17,7 @@ const {
   showCheapNumbers,
   handleConfirm,
   handleCancelActivation,
+  startExpiryWatchdog,
 } = require('./buyScene');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -26,6 +27,10 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB ulandi'))
   .catch(err => console.error('❌ MongoDB xatosi:', err));
+
+// Bot qayta ishga tushsa ham (Render uxlab qolishi / qayta deploy) pending aktivatsiyalarni
+// vaqti o'tgach avtomatik bekor qilib, pulni qaytarib turadi.
+startExpiryWatchdog(bot);
 
 // ---- Scenes ----
 const stage = new Scenes.Stage([adminScene(), topupScene()]);
@@ -203,13 +208,22 @@ bot.action(/^approve_topup_(\d+)_(\d+)_(\d+)$/, async ctx => {
   const targetUserId = parseInt(ctx.match[1]);
   const credited = parseInt(ctx.match[2]);
   const fee = parseInt(ctx.match[3]);
-  await approveTopup(ctx, targetUserId, credited, fee);
   try {
+    const updated = await approveTopup(ctx, targetUserId, credited, fee);
     await ctx.editMessageCaption(
-      ctx.callbackQuery.message.caption + '\n\n✅ <b>TASDIQLANDI</b>',
+      ctx.callbackQuery.message.caption +
+        `\n\n✅ <b>TASDIQLANDI</b> (yangi balans: ${updated.balance.toLocaleString()} so'm)`,
       { parse_mode: 'HTML' }
     );
-  } catch {}
+  } catch (e) {
+    console.error('Topupni tasdiqlashda xato:', e);
+    try {
+      await ctx.editMessageCaption(
+        ctx.callbackQuery.message.caption + `\n\n❌ <b>XATO:</b> ${e.message}`,
+        { parse_mode: 'HTML' }
+      );
+    } catch {}
+  }
 });
 
 bot.action(/^reject_topup_(\d+)$/, async ctx => {
