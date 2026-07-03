@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
-const { SERVICES, COUNTRIES, getAllOffersForService } = require('./herosms');
-const { getSetting, calcPriceUZS } = require('./settings');
+const { COUNTRIES } = require('./countries');
+const { getSetting } = require('./settings');
 
 function mainMenu(isAdmin = false) {
   const rows = [
@@ -20,55 +20,17 @@ function mainMenu(isAdmin = false) {
   return Markup.inlineKeyboard(rows);
 }
 
-function servicesKeyboard() {
-  const buttons = SERVICES.map(s =>
-    Markup.button.callback(s.name, `svc_${s.code}`)
-  );
-  const rows = [];
-  for (let i = 0; i < buttons.length; i += 3) {
-    rows.push(buttons.slice(i, i + 3));
-  }
-  rows.push([Markup.button.callback('🔥 Eng arzon takliflar', 'cheap_numbers')]);
+// Sotuvda mavjud davlatlar roʻyxati — har biri narxi bilan.
+// offers: [{ code, name, price, available }] (available > 0 boʻlganlar)
+function countriesForSaleKeyboard(offers) {
+  const rows = offers.map(o => [
+    Markup.button.callback(
+      `${o.name} — ${o.price.toLocaleString()} so'm (${o.available} ta)`,
+      `buycnt_${o.code}`
+    ),
+  ]);
   rows.push([Markup.button.callback('🔙 Bosh menyu', 'back_main')]);
   return Markup.inlineKeyboard(rows);
-}
-
-function countriesKeyboard(serviceCode) {
-  const buttons = COUNTRIES.map(c =>
-    Markup.button.callback(c.name, `cnt_${serviceCode}_${c.code}`)
-  );
-  const rows = [];
-  for (let i = 0; i < buttons.length; i += 3) {
-    rows.push(buttons.slice(i, i + 3));
-  }
-  rows.push([Markup.button.callback('🔥 Eng arzonini avtomatik tanlash', `cheapest_${serviceCode}`)]);
-  rows.push([Markup.button.callback('🔙 Servislar', 'buy_number')]);
-  return Markup.inlineKeyboard(rows);
-}
-
-// HeroSMS APIdagi BARCHA (mavjud) mamlakatlarni, har birining narxi bilan (so'mda)
-// koʻrsatadigan klaviatura. Eng arzonidan qimmatiga qarab saralangan.
-// Faqat hozircha raqami mavjud (count > 0) davlatlar chiqadi.
-const MAX_COUNTRY_BUTTONS = 80; // Telegram inline klaviatura limitidan xavfsiz chegara
-
-async function allCountriesKeyboard(apiKey, serviceCode) {
-  const offers = await getAllOffersForService(apiKey, serviceCode);
-  const shown = offers.slice(0, MAX_COUNTRY_BUTTONS);
-
-  const rows = [];
-  for (const o of shown) {
-    const priceUZS = await calcPriceUZS(o.cost);
-    rows.push([
-      Markup.button.callback(
-        `${o.name} — ${priceUZS.toLocaleString()} so'm`,
-        `cnt_${serviceCode}_${o.code}`
-      ),
-    ]);
-  }
-
-  rows.push([Markup.button.callback('🔥 Eng arzonini avtomatik tanlash', `cheapest_${serviceCode}`)]);
-  rows.push([Markup.button.callback('🔙 Servislar', 'buy_number')]);
-  return { keyboard: Markup.inlineKeyboard(rows), count: offers.length, shown: shown.length };
 }
 
 function adminPanelKeyboard() {
@@ -85,6 +47,7 @@ function adminPanelKeyboard() {
       Markup.button.callback('💳 Karta', 'adm_card'),
       Markup.button.callback('📢 Majburiy kanallar', 'adm_channel'),
     ],
+    [Markup.button.callback('🔢 Raqamlar bazasi', 'adm_numbers')],
     [Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus')],
     [Markup.button.callback('🧾 Isbot kanali', 'adm_proofchannel')],
     [Markup.button.callback('🖼 Bosh menyu rasmi', 'adm_image')],
@@ -94,7 +57,6 @@ function adminPanelKeyboard() {
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
 }
-
 
 function balancesMenuKeyboard(page, totalPages) {
   const navRow = [];
@@ -123,9 +85,9 @@ function backToMain() {
   return Markup.inlineKeyboard([[Markup.button.callback('🔙 Bosh menyu', 'back_main')]]);
 }
 
-function confirmBuyKeyboard(serviceCode, countryCode) {
+function confirmBuyKeyboard(countryCode) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Tasdiqlash', `confirm_${serviceCode}_${countryCode}`)],
+    [Markup.button.callback('✅ Tasdiqlash', `buyconfirm_${countryCode}`)],
     [Markup.button.callback('❌ Bekor qilish', 'back_main')],
   ]);
 }
@@ -134,6 +96,57 @@ function cancelActivationKeyboard(activationId) {
   return Markup.inlineKeyboard([
     [Markup.button.callback('🚫 Bekor qilish', `cancel_act_${activationId}`)],
   ]);
+}
+
+// ---- Admin: Raqamlar bazasi ----
+
+// Har bir davlat uchun mavjud/band/ishlatilgan sonini ko'rsatadigan menyu
+function numbersAdminMenuKeyboard(summaries) {
+  const rows = summaries.map(s => [
+    Markup.button.callback(
+      `${s.name} — ✅${s.available} ⏳${s.assigned} ⛔${s.used}`,
+      `adm_num_country_${s.code}`
+    ),
+  ]);
+  rows.push([Markup.button.callback('➕ Yangi raqam qoʻshish', 'adm_num_add')]);
+  rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// Raqam qo'shish/ko'rish uchun davlat tanlash (to'liq statik ro'yxat)
+function countryPickerKeyboard(prefix, cancelData = 'adm_numbers') {
+  const buttons = COUNTRIES.map(c => Markup.button.callback(c.name, `${prefix}_${c.code}`));
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+  rows.push([Markup.button.callback('❌ Bekor', cancelData)]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// Bitta davlat ichidagi raqamlar ro'yxati (o'chirish uchun bosiladi)
+function numberListKeyboard(countryCode, numbers) {
+  const statusEmoji = { pending_login: '🔧', available: '✅', assigned: '⏳', used: '⛔', error: '❌' };
+  const rows = numbers.map(n => [
+    Markup.button.callback(
+      `${statusEmoji[n.status] || '•'} ${n.phoneNumber}`,
+      `adm_num_view_${n._id}`
+    ),
+  ]);
+  rows.push([Markup.button.callback('💰 Narxni sozlash', `adm_num_price_${countryCode}`)]);
+  rows.push([Markup.button.callback('🔙 Raqamlar bazasi', 'adm_numbers')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+function numberDetailKeyboard(id, status) {
+  const rows = [];
+  if (status !== 'assigned') {
+    rows.push([Markup.button.callback("🗑 O'chirish", `adm_num_del_${id}`)]);
+  }
+  rows.push([Markup.button.callback('🔙 Orqaga', 'adm_numbers')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+function cancelLoginKeyboard() {
+  return Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor qilish', 'adm_num_login_cancel')]]);
 }
 
 // Asosiy menyuni (matn + tugmalar) admin tomonidan o'rnatilgan rasm bilan yoki rasmsiz chiqaradi.
@@ -185,9 +198,7 @@ async function safeEdit(ctx, text, extra = {}) {
 
 module.exports = {
   mainMenu,
-  servicesKeyboard,
-  countriesKeyboard,
-  allCountriesKeyboard,
+  countriesForSaleKeyboard,
   adminPanelKeyboard,
   balancesMenuKeyboard,
   balancesResetConfirmKeyboard,
@@ -195,6 +206,11 @@ module.exports = {
   backToMain,
   confirmBuyKeyboard,
   cancelActivationKeyboard,
+  numbersAdminMenuKeyboard,
+  countryPickerKeyboard,
+  numberListKeyboard,
+  numberDetailKeyboard,
+  cancelLoginKeyboard,
   sendMainMenu,
   safeEdit,
 };
