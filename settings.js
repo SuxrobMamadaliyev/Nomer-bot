@@ -13,6 +13,8 @@ const DEFAULTS = {
   force_sub_channels: [],      // Majburiy obuna kanallari roʻyxati (masalan: ['@kanal1', '@kanal2']). Cheksiz qoʻshish mumkin.
   main_menu_image: '',         // Asosiy menyu tugmalari ustida chiqadigan rasm (Telegram file_id). Bo'sh bo'lsa — rasm yo'q.
   proof_channel: '',           // Har bir xariddan keyin "isbot" post yuboriladigan kanal (masalan: @kanalim). Bo'sh bo'lsa — yuborilmaydi.
+  number_prices: {},           // Davlat kodi -> narx (so'mda). Masalan: { uz: 15000, ru: 8000 }
+  number_wait_minutes: 5,      // Raqam berilgach kod necha daqiqa kutiladi (shu vaqtda kod kelmasa pul qaytariladi)
 };
 
 async function getSetting(key) {
@@ -40,4 +42,25 @@ async function calcPriceUZS(costUSD) {
   return Math.ceil(base * (1 + markup / 100) / 100) * 100; // 100 so'mga yaxlitlash
 }
 
-module.exports = { getSetting, setSetting, getAllSettings, calcPriceUZS, DEFAULTS };
+// Bitta davlat uchun narxni olish (so'mda). O'rnatilmagan bo'lsa 0 qaytaradi.
+async function getNumberPrice(countryCode) {
+  const prices = (await getSetting('number_prices')) || {};
+  return prices[countryCode] || 0;
+}
+
+// Bitta davlat uchun narxni o'rnatish (so'mda)
+async function setNumberPrice(countryCode, priceUZS) {
+  const prices = (await getSetting('number_prices')) || {};
+  prices[countryCode] = priceUZS;
+  await setSetting('number_prices', prices);
+}
+
+module.exports = {
+  getSetting,
+  setSetting,
+  getAllSettings,
+  calcPriceUZS,
+  getNumberPrice,
+  setNumberPrice,
+  DEFAULTS,
+};
