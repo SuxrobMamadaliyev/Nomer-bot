@@ -5,8 +5,8 @@ const DEFAULTS = {
   usd_to_uzs: 12700,           // 1 dollar = ? so'm
   topup_fee_percent: 3,        // Balans to'ldirishda ushlab qolinadigan komissiya (%)
   star_to_uzs: 100,            // 1 Telegram Star = ? so'm (Stars orqali to'ldirishda balansga shu kursda qo'shiladi)
-  min_balance_uzs: 5000,       // Minimal balans (so'm)
-  referral_bonus_uzs: 10,    // Referal uchun bonus (so'm)
+  min_balance_uzs: 5000,       // Minimal depozit (to'ldirish) summasi (so'm)
+  referral_bonus_uzs: 100,     // Referal uchun bonus (so'm) — yangi foydalanuvchi majburiy kanallarga aʼzo boʻlgach beriladi
   card_number: '9860 1678 4936 3665',
   card_holder: 'Suhrob M',
   support_username: '@suxacyber404',
