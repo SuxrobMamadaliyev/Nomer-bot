@@ -31,6 +31,7 @@ async function showAdminPanel(ctx) {
 }
 
 const BALANCES_PAGE_SIZE = 15;
+const DIVIDER_CHAR = '➖➖➖➖➖➖➖➖➖➖';
 
 // Foydalanuvchilar balanslari roʻyxatini sahifalab koʻrsatadi
 async function showBalancesPage(ctx, page = 0) {
@@ -62,6 +63,33 @@ async function showBalancesPage(ctx, page = 0) {
   await safeEdit(ctx, text, { parse_mode: 'HTML', ...balancesMenuKeyboard(page, totalPages) });
 }
 
+// Barcha foydalanuvchilarga xabar yuborish (cursor orqali xotirani tejab, birma-bir yuboriladi).
+// Telegramning global cheklovi (~30 xabar/soniya) ga tushib qolmaslik uchun har birida kichik pauza qilinadi.
+async function broadcastToAllUsers(ctx, content) {
+  const cursor = User.find({}, { telegramId: 1 }).lean().cursor();
+  let sent = 0, failed = 0, total = 0;
+
+  for (let user = await cursor.next(); user != null; user = await cursor.next()) {
+    total++;
+    try {
+      if (content.type === 'photo') {
+        await ctx.telegram.sendPhoto(user.telegramId, content.photo, {
+          caption: content.caption || undefined,
+          parse_mode: 'HTML',
+        });
+      } else {
+        await ctx.telegram.sendMessage(user.telegramId, content.text, { parse_mode: 'HTML' });
+      }
+      sent++;
+    } catch (e) {
+      failed++; // bloklangan, chat topilmadi va h.k.
+    }
+    await new Promise(r => setTimeout(r, 40));
+  }
+
+  return { sent, failed, total };
+}
+
 function channelMenuKeyboard(channels) {
   const rows = [];
   channels.forEach((ch, i) => {
@@ -88,6 +116,7 @@ function imageMenuKeyboard(hasImage) {
 // Waiting state: { key, label }
 const waiting = {}; // telegramId -> { key, label }
 const waitingPhoto = {}; // telegramId -> true (rasm kutilmoqda)
+const pendingBroadcast = {}; // adminTelegramId -> { type: 'text'|'photo', text?, photo?, caption? }
 
 function adminScene() {
   const scene = new Scenes.BaseScene('admin');
@@ -237,6 +266,43 @@ function adminScene() {
       return;
     }
 
+    if (data === 'adm_broadcast') {
+      await ctx.answerCbQuery();
+      delete pendingBroadcast[ctx.from.id];
+      waiting[ctx.from.id] = { key: '_broadcast' };
+      return safeEdit(ctx,
+        `📣 <b>Barchaga xabar yuborish</b>\n\n` +
+        `Yubormoqchi boʻlgan xabar matnini kiriting yoki rasm (izoh bilan) yuboring.\n\n` +
+        `ℹ️ HTML formatlash qoʻllab-quvvatlanadi (masalan: <b>qalin</b>, <i>qiya</i>).`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
+      );
+    }
+
+    if (data === 'adm_broadcast_send') {
+      await ctx.answerCbQuery();
+      const pending = pendingBroadcast[ctx.from.id];
+      if (!pending) {
+        return safeEdit(ctx, "❌ Yuborish uchun xabar topilmadi. Qaytadan urinib koʻring.", { parse_mode: 'HTML', ...backToAdmin() });
+      }
+      delete pendingBroadcast[ctx.from.id];
+      await ctx.reply('⏳ Xabar yuborilmoqda... Foydalanuvchilar soniga qarab bir necha daqiqa vaqt olishi mumkin.');
+      const result = await broadcastToAllUsers(ctx, pending);
+      await ctx.reply(
+        `✅ <b>Xabar yuborish yakunlandi</b>\n\n` +
+        `📤 Yuborildi: <b>${result.sent}</b>\n` +
+        `🚫 Yuborilmadi (bloklangan/xato): <b>${result.failed}</b>\n` +
+        `👥 Jami foydalanuvchilar: <b>${result.total}</b>`,
+        { parse_mode: 'HTML', ...backToAdmin() }
+      );
+      return;
+    }
+
+    if (data === 'adm_broadcast_cancel') {
+      await ctx.answerCbQuery('❌ Bekor qilindi');
+      delete pendingBroadcast[ctx.from.id];
+      return showAdminPanel(ctx);
+    }
+
     if (data === 'adm_stats') {
       await ctx.answerCbQuery();
       const totalUsers = await User.countDocuments();
@@ -296,8 +362,33 @@ function adminScene() {
     return next();
   });
 
-  // Bosh menyu rasmini yuklash
+  // Bosh menyu rasmini yuklash / Broadcast uchun rasm qabul qilish
   scene.on('photo', async ctx => {
+    const w = waiting[ctx.from.id];
+
+    if (w && w.key === '_broadcast') {
+      delete waiting[ctx.from.id];
+      const photos = ctx.message.photo;
+      const fileId = photos[photos.length - 1].file_id;
+      const caption = ctx.message.caption || '';
+      pendingBroadcast[ctx.from.id] = { type: 'photo', photo: fileId, caption };
+
+      const confirmKb = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Yuborish', 'adm_broadcast_send'), Markup.button.callback('❌ Bekor', 'adm_broadcast_cancel')],
+      ]);
+      try {
+        await ctx.replyWithPhoto(fileId, {
+          caption: `📣 <b>Preview</b>\n${DIVIDER_CHAR}\n${caption}`,
+          parse_mode: 'HTML',
+          ...confirmKb,
+        });
+      } catch (e) {
+        delete pendingBroadcast[ctx.from.id];
+        await ctx.reply('❌ Xabar formatida xato: ' + e.message, backToAdmin());
+      }
+      return;
+    }
+
     if (!waitingPhoto[ctx.from.id]) return;
     delete waitingPhoto[ctx.from.id];
 
@@ -315,6 +406,23 @@ function adminScene() {
   scene.on('text', async ctx => {
     const w = waiting[ctx.from.id];
     if (!w) return;
+
+    if (w.key === '_broadcast') {
+      delete waiting[ctx.from.id];
+      const text = ctx.message.text;
+      pendingBroadcast[ctx.from.id] = { type: 'text', text };
+
+      const confirmKb = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Yuborish', 'adm_broadcast_send'), Markup.button.callback('❌ Bekor', 'adm_broadcast_cancel')],
+      ]);
+      try {
+        await ctx.reply(`📣 <b>Preview</b>\n${DIVIDER_CHAR}\n${text}`, { parse_mode: 'HTML', ...confirmKb });
+      } catch (e) {
+        delete pendingBroadcast[ctx.from.id];
+        await ctx.reply('❌ Xabar formatida xato: ' + e.message, backToAdmin());
+      }
+      return;
+    }
 
     const val = ctx.message.text.trim();
     delete waiting[ctx.from.id];
