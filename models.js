@@ -58,4 +58,20 @@ const Settings = mongoose.model('Settings', settingsSchema);
 const Activation = mongoose.model('Activation', activationSchema);
 const NumberAccount = mongoose.model('NumberAccount', numberAccountSchema);
 
-module.exports = { User, Settings, Activation, NumberAccount };
+// ---- TON orqali balans to'ldirish invoyslari ----
+const tonInvoiceSchema = new mongoose.Schema({
+  telegramId: { type: Number, required: true },
+  code: { type: String, required: true, unique: true }, // Tranzaksiya izohida (comment) qidiriladigan noyob kod
+  amountTon: { type: Number, required: true },
+  amountUZS: { type: Number, required: true }, // Toʻlov tasdiqlansa balansga shuncha so'm qo'shiladi
+  walletAddress: { type: String, required: true },
+  status: { type: String, default: 'pending' }, // pending | paid | expired
+  txHash: String,
+  receivedTon: Number,
+  paidAt: Date,
+  createdAt: { type: Date, default: Date.now },
+});
+
+const TonInvoice = mongoose.model('TonInvoice', tonInvoiceSchema);
+
+module.exports = { User, Settings, Activation, NumberAccount, TonInvoice };
