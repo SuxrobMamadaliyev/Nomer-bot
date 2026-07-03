@@ -2,30 +2,46 @@ require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const mongoose = require('mongoose');
 
-const { User, Activation } = require('./models');
+const { User, Activation, NumberAccount } = require('./models');
 const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
 const { mainMenu, backToMain, sendMainMenu, safeEdit } = require('./keyboards');
 const { requireChannelSub } = require('./channelSub');
+const { countryName } = require('./countries');
+const userbot = require('./userbot');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
 const { topupScene, showTopupMenu, approveTopup, creditStarsPayment } = require('./topupScene');
 const {
-  showServices,
-  handleServiceSelect,
+  setBotInstance,
+  showCountries,
   handleCountrySelect,
-  handleCheapestForService,
-  showCheapNumbers,
   handleConfirm,
   handleCancelActivation,
+  handleIncomingCode,
   startExpiryWatchdog,
 } = require('./buyScene');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+setBotInstance(bot); // buyScene kod kelganda foydalanuvchiga xabar yuborishi uchun
 
 // ---- MongoDB ulanish ----
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB ulandi'))
+  .then(async () => {
+    console.log('✅ MongoDB ulandi');
+    // Bot qayta ishga tushganda (Render uxlab qolishi / qayta deploy) barcha login qilingan
+    // raqamlar uchun userbot tinglovchilarini qayta ulaydi — shunda kod kelishi to'xtamaydi.
+    try {
+      const accounts = await NumberAccount.find({
+        sessionString: { $exists: true, $ne: '' },
+        status: { $in: ['available', 'assigned'] },
+      }).lean();
+      await userbot.resumeAll(accounts, handleIncomingCode);
+      console.log(`🔌 Userbot: ${accounts.length} ta raqam uchun tinglovchi ulandi`);
+    } catch (e) {
+      console.error('❌ Userbot tinglovchilarini ulashda xato:', e.message);
+    }
+  })
   .catch(err => console.error('❌ MongoDB xatosi:', err));
 
 // Bot qayta ishga tushsa ham (Render uxlab qolishi / qayta deploy) pending aktivatsiyalarni
@@ -125,11 +141,11 @@ bot.action('help', async ctx => {
   const support = await getSetting('support_username');
   await safeEdit(ctx, 
     `❓ <b>Yordam</b>\n\n` +
-    `🔥 "Arzon nomerlar" — barcha xizmatlar boʻyicha eng arzon takliflar roʻyxati\n` +
-    `📱 "Raqam olish" — servis va mamlakatni tanlab virtual raqam sotib olish\n` +
+    `🔥 "Arzon nomerlar" — davlatlar roʻyxati, eng arzonidan boshlab\n` +
+    `📱 "Raqam olish" — davlatni tanlab virtual raqam sotib olish\n` +
     `👤 "Kabinet" — balans va xaridlar tarixi\n` +
     `👛 "Balans to'ldirish" — Telegram Stars yoki karta orqali to'lov\n\n` +
-    `💡 Servis tanlaganingizdan keyin "Eng arzonini avtomatik tanlash" tugmasi eng arzon mamlakatni oʻzi topib beradi.\n\n` +
+    `💡 Raqam olgach, kod avtomatik kelib, shu yerga yuboriladi — hech narsa bosish shart emas.\n\n` +
     `💬 Savollar bo'yicha: ${support}`,
     { parse_mode: 'HTML', ...backToMain() }
   );
@@ -142,7 +158,7 @@ bot.action('cabinet', async ctx => {
   const activations = await Activation.find({ telegramId: ctx.from.id }).sort({ createdAt: -1 }).limit(5);
 
   let histText = activations.length
-    ? activations.map(a => `• ${a.service} (${a.status === 'success' ? '✅' : a.status === 'pending' ? '⏳' : '❌'}) — ${a.pricePaid.toLocaleString()} so'm`).join('\n')
+    ? activations.map(a => `• ${countryName(a.country)} (${a.status === 'success' ? '✅' : a.status === 'pending' ? '⏳' : '❌'}) — ${a.pricePaid.toLocaleString()} so'm`).join('\n')
     : 'Tarix mavjud emas.';
 
   const refLink = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
@@ -161,28 +177,19 @@ bot.action('cabinet', async ctx => {
 
 // ================= BUY NUMBER =================
 bot.action('buy_number', async ctx => {
-  await ctx.answerCbQuery();
-  await showServices(ctx);
+  await showCountries(ctx);
 });
 
 bot.action('cheap_numbers', async ctx => {
-  await showCheapNumbers(ctx);
+  await showCountries(ctx, { title: '🔥 <b>Eng arzon davlatlar</b>' });
 });
 
-bot.action(/^svc_(.+)$/, async ctx => {
-  await handleServiceSelect(ctx, ctx.match[1]);
+bot.action(/^buycnt_(.+)$/, async ctx => {
+  await handleCountrySelect(ctx, ctx.match[1]);
 });
 
-bot.action(/^cheapest_(.+)$/, async ctx => {
-  await handleCheapestForService(ctx, ctx.match[1]);
-});
-
-bot.action(/^cnt_(.+)_(.+)$/, async ctx => {
-  await handleCountrySelect(ctx, ctx.match[1], ctx.match[2]);
-});
-
-bot.action(/^confirm_(.+)_(.+)$/, async ctx => {
-  await handleConfirm(ctx, ctx.match[1], ctx.match[2]);
+bot.action(/^buyconfirm_(.+)$/, async ctx => {
+  await handleConfirm(ctx, ctx.match[1]);
 });
 
 bot.action(/^cancel_act_(.+)$/, async ctx => {
