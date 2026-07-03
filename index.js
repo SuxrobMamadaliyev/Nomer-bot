@@ -7,6 +7,7 @@ const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
 const { mainMenu, backToMain, sendMainMenu, safeEdit } = require('./keyboards');
 const { requireChannelSub } = require('./channelSub');
 const { countryName } = require('./countries');
+const { getSetting } = require('./settings');
 const userbot = require('./userbot');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
@@ -67,6 +68,36 @@ bot.use(async (ctx, next) => {
       },
       { upsert: true }
     );
+
+    // Referal: /start orqali kelgan referal ID'ni darhol kredit qilmasdan, "kutilayotgan"
+    // holatda saqlaymiz — bonus faqat majburiy kanallarga aʼzo boʻlgach beriladi.
+    const payload = ctx.startPayload;
+    if (payload && /^\d+$/.test(payload)) {
+      const refId = parseInt(payload, 10);
+      if (refId !== ctx.from.id) {
+        await User.updateOne(
+          { telegramId: ctx.from.id, referredBy: { $exists: false }, pendingReferrer: { $exists: false } },
+          { $set: { pendingReferrer: refId } }
+        );
+      }
+    }
+  }
+  return next();
+});
+
+// ---- Ban tekshiruvi ----
+bot.use(async (ctx, next) => {
+  if (ctx.from && !isAdmin(ctx.from.id)) {
+    const u = await User.findOne({ telegramId: ctx.from.id }, { isBanned: 1 }).lean();
+    if (u?.isBanned) {
+      const text = '🚫 Siz botdan foydalanish huquqidan mahrum qilingansiz.\nBatafsil maʼlumot uchun admin bilan bogʻlaning.';
+      if (ctx.callbackQuery) {
+        try { await ctx.answerCbQuery('🚫 Siz bloklangansiz', { show_alert: true }); } catch {}
+      } else {
+        try { await ctx.reply(text); } catch {}
+      }
+      return;
+    }
   }
   return next();
 });
@@ -74,30 +105,45 @@ bot.use(async (ctx, next) => {
 // ---- Majburiy kanal obunasi tekshiruvi ----
 bot.use(requireChannelSub);
 
+// ---- Referal bonusini berish: faqat majburiy kanallarga aʼzo boʻlgan foydalanuvchiga ----
+async function tryGrantReferralBonus(ctx) {
+  if (!ctx.from) return;
+  const user = await User.findOne(
+    { telegramId: ctx.from.id },
+    { pendingReferrer: 1, referredBy: 1 }
+  ).lean();
+  if (!user || !user.pendingReferrer || user.referredBy) return;
+
+  const refId = user.pendingReferrer;
+  // Atomik: faqat hali referredBy o'rnatilmagan bo'lsa bonus beriladi (qayta berilmasligi uchun)
+  const updated = await User.findOneAndUpdate(
+    { telegramId: ctx.from.id, referredBy: { $exists: false } },
+    { $set: { referredBy: refId }, $unset: { pendingReferrer: '' } },
+    { new: true }
+  );
+  if (!updated) return;
+
+  const bonus = await getSetting('referral_bonus_uzs');
+  await User.updateOne(
+    { telegramId: refId },
+    { $inc: { balance: bonus, referralCount: 1 } }
+  );
+  try {
+    await ctx.telegram.sendMessage(
+      refId,
+      `🎉 Sizning referalingiz orqali taklif qilingan foydalanuvchi majburiy kanallarga aʼzo boʻldi!\n💰 +${bonus.toLocaleString()} so'm balansga qo'shildi.`
+    );
+  } catch {}
+}
+
+bot.use(async (ctx, next) => {
+  await tryGrantReferralBonus(ctx);
+  return next();
+});
+
 // ================= START =================
 bot.start(async ctx => {
   const admin = isAdmin(ctx.from.id);
-
-  // Referal
-  const payload = ctx.startPayload;
-  if (payload && /^\d+$/.test(payload) && parseInt(payload) !== ctx.from.id) {
-    const existing = await User.findOne({ telegramId: ctx.from.id });
-    if (existing && !existing.referredBy) {
-      await User.updateOne({ telegramId: ctx.from.id }, { referredBy: parseInt(payload) });
-      const { getSetting } = require('./settings');
-      const bonus = await getSetting('referral_bonus_uzs');
-      await User.updateOne(
-        { telegramId: parseInt(payload) },
-        { $inc: { balance: bonus, referralCount: 1 } }
-      );
-      try {
-        await ctx.telegram.sendMessage(
-          payload,
-          `🎉 Sizning referalingiz orqali yangi foydalanuvchi qo'shildi!\n💰 +${bonus.toLocaleString()} so'm balansga qo'shildi.`
-        );
-      } catch {}
-    }
-  }
 
   const userDoc = await User.findOne({ telegramId: ctx.from.id });
   const balance = userDoc?.balance || 0;
@@ -135,9 +181,26 @@ bot.action('back_main', async ctx => {
   await sendMainMenu(ctx, text, mainMenu(admin), { edit: true });
 });
 
+// ================= REFERAL =================
+bot.action('referral_info', async ctx => {
+  await ctx.answerCbQuery();
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  const bonus = await getSetting('referral_bonus_uzs');
+  const refLink = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
+
+  await safeEdit(ctx,
+    `🎁 <b>Referal dasturi</b>\n\n` +
+    `Doʻstlaringizni taklif qiling va bonus yigʻing!\n\n` +
+    `💰 Bonus: <b>${bonus.toLocaleString()} so'm</b> — har bir yangi foydalanuvchi uchun\n` +
+    `👥 Sizning referallaringiz: <b>${user?.referralCount || 0}</b>\n\n` +
+    `ℹ️ Bonus faqat taklif qilingan foydalanuvchi majburiy kanallarga aʼzo boʻlgandan keyin beriladi.\n\n` +
+    `🔗 Sizning referal havolangiz:\n<code>${refLink}</code>`,
+    { parse_mode: 'HTML', ...backToMain() }
+  );
+});
+
 bot.action('help', async ctx => {
   await ctx.answerCbQuery();
-  const { getSetting } = require('./settings');
   const support = await getSetting('support_username');
   await safeEdit(ctx, 
     `❓ <b>Yordam</b>\n\n` +
