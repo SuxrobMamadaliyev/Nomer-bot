@@ -15,6 +15,8 @@ const DEFAULTS = {
   proof_channel: '',           // Har bir xariddan keyin "isbot" post yuboriladigan kanal (masalan: @kanalim). Bo'sh bo'lsa — yuborilmaydi.
   number_prices: {},           // Davlat kodi -> narx (so'mda). Masalan: { uz: 15000, ru: 8000 }
   number_wait_minutes: 5,      // Raqam berilgach kod necha daqiqa kutiladi (shu vaqtda kod kelmasa pul qaytariladi)
+  ton_wallet_address: '',      // TON hamyon manzili (avtomatik TON to'lovlarini shu manzil qabul qiladi)
+  ton_to_uzs: 0,                // 1 TON = ? so'm (0 bo'lsa TON orqali toʻldirish oʻchirilgan hisoblanadi)
 };
 
 async function getSetting(key) {
