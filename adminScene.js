@@ -1,8 +1,21 @@
 const { Scenes, Markup } = require('telegraf');
-const { getSetting, setSetting, getAllSettings } = require('./settings');
-const { adminPanelKeyboard, balancesMenuKeyboard, balancesResetConfirmKeyboard, backToAdmin, safeEdit } = require('./keyboards');
-const { User, Activation } = require('./models');
-const { getBalance } = require('./herosms');
+const { getSetting, setSetting, getAllSettings, getNumberPrice, setNumberPrice } = require('./settings');
+const {
+  adminPanelKeyboard,
+  balancesMenuKeyboard,
+  balancesResetConfirmKeyboard,
+  backToAdmin,
+  safeEdit,
+  numbersAdminMenuKeyboard,
+  countryPickerKeyboard,
+  numberListKeyboard,
+  numberDetailKeyboard,
+  cancelLoginKeyboard,
+} = require('./keyboards');
+const { User, Activation, NumberAccount } = require('./models');
+const { countryName } = require('./countries');
+const userbot = require('./userbot');
+const { handleIncomingCode } = require('./buyScene');
 
 // Admin panel asosiy ko'rinish
 async function showAdminPanel(ctx) {
@@ -114,9 +127,42 @@ function imageMenuKeyboard(hasImage) {
 }
 
 // Waiting state: { key, label }
-const waiting = {}; // telegramId -> { key, label }
+const waiting = {}; // telegramId -> { key, label, meta? }
 const waitingPhoto = {}; // telegramId -> true (rasm kutilmoqda)
 const pendingBroadcast = {}; // adminTelegramId -> { type: 'text'|'photo', text?, photo?, caption? }
+const pendingNewNumber = {}; // adminTelegramId -> { country } (login jarayonidagi raqam)
+
+// Har bir davlat bo'yicha mavjud/band/ishlatilgan raqamlar sonini hisoblaydi
+async function getCountrySummaries() {
+  const agg = await NumberAccount.aggregate([
+    { $group: { _id: { country: '$country', status: '$status' }, count: { $sum: 1 } } },
+  ]);
+  const map = {};
+  for (const row of agg) {
+    const { country, status } = row._id;
+    if (!map[country]) map[country] = {};
+    map[country][status] = row.count;
+  }
+  return Object.keys(map)
+    .map(code => ({
+      code,
+      name: countryName(code),
+      available: map[code].available || 0,
+      assigned: map[code].assigned || 0,
+      used: (map[code].used || 0) + (map[code].error || 0) + (map[code].pending_login || 0),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function showNumbersAdminMenu(ctx) {
+  const summaries = await getCountrySummaries();
+  const text =
+    `🔢 <b>Raqamlar bazasi</b>\n${DIVIDER_CHAR}\n` +
+    (summaries.length
+      ? `✅ mavjud · ⏳ band · ⛔ ishlatilgan/xato\n\nDavlatni tanlang — ichidagi raqamlarni koʻrish uchun.`
+      : `Hozircha hech qanday raqam qoʻshilmagan.`);
+  await safeEdit(ctx, text, { parse_mode: 'HTML', ...numbersAdminMenuKeyboard(summaries) });
+}
 
 function adminScene() {
   const scene = new Scenes.BaseScene('admin');
@@ -148,7 +194,115 @@ function adminScene() {
       await ctx.answerCbQuery();
       delete waiting[ctx.from.id];
       delete waitingPhoto[ctx.from.id];
+      if (userbot.hasPendingLogin(ctx.from.id)) {
+        await userbot.cancelLogin(ctx.from.id);
+        delete pendingNewNumber[ctx.from.id];
+      }
       return showAdminPanel(ctx);
+    }
+
+    // ---- RAQAMLAR BAZASI ----
+
+    if (data === 'adm_numbers') {
+      await ctx.answerCbQuery();
+      return showNumbersAdminMenu(ctx);
+    }
+
+    if (data === 'adm_num_add') {
+      await ctx.answerCbQuery();
+      return safeEdit(ctx,
+        '🌍 Yangi raqam qaysi davlat uchun?',
+        { parse_mode: 'HTML', ...countryPickerKeyboard('adm_num_addc', 'adm_numbers') }
+      );
+    }
+
+    if (data.startsWith('adm_num_addc_')) {
+      await ctx.answerCbQuery();
+      const country = data.replace('adm_num_addc_', '');
+      waiting[ctx.from.id] = {
+        key: '_num_phone',
+        label: "Raqamni xalqaro formatda kiriting (masalan: 998901234567, + belgisisiz).",
+        meta: { country },
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_numbers')]]) }
+      );
+    }
+
+    if (data === 'adm_num_login_cancel') {
+      await ctx.answerCbQuery('❌ Bekor qilindi');
+      await userbot.cancelLogin(ctx.from.id);
+      delete waiting[ctx.from.id];
+      delete pendingNewNumber[ctx.from.id];
+      return showNumbersAdminMenu(ctx);
+    }
+
+    if (data.startsWith('adm_num_country_')) {
+      await ctx.answerCbQuery();
+      const country = data.replace('adm_num_country_', '');
+      const numbers = await NumberAccount.find({ country }).sort({ createdAt: -1 }).lean();
+      const text = numbers.length
+        ? `${countryName(country)}\n${DIVIDER_CHAR}\n🔧 login kutilmoqda · ✅ mavjud · ⏳ band · ⛔ ishlatilgan/xato`
+        : `${countryName(country)}\n${DIVIDER_CHAR}\nBu davlatda hali raqam yoʻq.`;
+      return safeEdit(ctx, text, { parse_mode: 'HTML', ...numberListKeyboard(country, numbers) });
+    }
+
+    if (data.startsWith('adm_num_price_')) {
+      await ctx.answerCbQuery();
+      const country = data.replace('adm_num_price_', '');
+      const current = await getNumberPrice(country);
+      waiting[ctx.from.id] = {
+        key: '_num_price',
+        label: `${countryName(country)} uchun narxni so'mda kiriting (hozirgi: ${current.toLocaleString()} so'm).`,
+        meta: { country },
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_num_country_${country}`)]]) }
+      );
+    }
+
+    if (data.startsWith('adm_num_view_')) {
+      await ctx.answerCbQuery();
+      const id = data.replace('adm_num_view_', '');
+      const n = await NumberAccount.findById(id).lean();
+      if (!n) return safeEdit(ctx, '❌ Topilmadi.', { parse_mode: 'HTML', ...backToAdmin() });
+      const statusLabel = {
+        pending_login: '🔧 Login tugallanmagan',
+        available: '✅ Mavjud (sotuvda)',
+        assigned: '⏳ Band (foydalanuvchida)',
+        used: '⛔ Ishlatilgan',
+        error: '❌ Xato',
+      }[n.status] || n.status;
+      const text =
+        `📱 <b>+${n.phoneNumber}</b>\n${DIVIDER_CHAR}\n` +
+        `🌍 Davlat: ${countryName(n.country)}\n` +
+        `📊 Holat: ${statusLabel}\n` +
+        (n.assignedTo ? `👤 Berilgan: <code>${n.assignedTo}</code>\n` : '') +
+        (n.lastCode ? `🔑 Oxirgi kod: <code>${n.lastCode}</code>\n` : '') +
+        (n.lastError ? `⚠️ Xato: ${n.lastError}\n` : '');
+      return safeEdit(ctx, text, { parse_mode: 'HTML', ...numberDetailKeyboard(n._id, n.status) });
+    }
+
+    if (data.startsWith('adm_num_del_')) {
+      const id = data.replace('adm_num_del_', '');
+      const n = await NumberAccount.findById(id);
+      if (!n) {
+        await ctx.answerCbQuery('Topilmadi');
+        return showNumbersAdminMenu(ctx);
+      }
+      if (n.status === 'assigned') {
+        return ctx.answerCbQuery("⛔ Bu raqam hozir foydalanuvchida — o'chirib bo'lmaydi", { show_alert: true });
+      }
+      await userbot.stopListening(n.phoneNumber);
+      await NumberAccount.deleteOne({ _id: id });
+      await ctx.answerCbQuery("🗑 O'chirildi");
+      const numbers = await NumberAccount.find({ country: n.country }).sort({ createdAt: -1 }).lean();
+      return safeEdit(ctx,
+        `${countryName(n.country)}\n${DIVIDER_CHAR}\n🗑 <code>+${n.phoneNumber}</code> oʻchirildi.`,
+        { parse_mode: 'HTML', ...numberListKeyboard(n.country, numbers) }
+      );
     }
 
     if (data === 'adm_channel') {
@@ -322,10 +476,9 @@ function adminScene() {
       ]);
       const totalFee = feeAgg[0]?.totalFee || 0;
 
-      let heroBalance = '—';
-      try {
-        heroBalance = '$' + (await getBalance(process.env.HEROSMS_API_KEY)).toFixed(2);
-      } catch {}
+      const numAvailable = await NumberAccount.countDocuments({ status: 'available' });
+      const numAssigned = await NumberAccount.countDocuments({ status: 'assigned' });
+      const numUsed = await NumberAccount.countDocuments({ status: 'used' });
 
       let starsBalance = '—';
       try {
@@ -342,7 +495,7 @@ function adminScene() {
         `✅ Muvaffaqiyatli: <b>${successAct}</b>\n\n` +
         `💵 Raqamlardan tushgan (sotuv): <b>${totalSales.toLocaleString()} so'm</b>\n` +
         `📉 To'ldirish komissiyasidan: <b>${totalFee.toLocaleString()} so'm</b>\n\n` +
-        `💰 HeroSMS balansi: <b>${heroBalance}</b>\n` +
+        `🔢 Raqamlar bazasi: ✅${numAvailable}  ⏳${numAssigned}  ⛔${numUsed}\n` +
         `⭐ Bot Stars balansi: <b>${starsBalance}</b>`,
         { parse_mode: 'HTML', ...backToAdmin() }
       );
@@ -422,6 +575,111 @@ function adminScene() {
         await ctx.reply('❌ Xabar formatida xato: ' + e.message, backToAdmin());
       }
       return;
+    }
+
+    // ---- RAQAM QO'SHISH: telefon raqam kiritildi -> GramJS login boshlanadi ----
+    if (w.key === '_num_phone') {
+      const phoneRaw = ctx.message.text.trim().replace(/[^0-9]/g, '');
+      delete waiting[ctx.from.id];
+      if (!phoneRaw || phoneRaw.length < 8) {
+        return ctx.reply("❌ Raqam noto'g'ri. Qaytadan urinib ko'ring.", backToAdmin());
+      }
+      const existing = await NumberAccount.findOne({ phoneNumber: phoneRaw });
+      if (existing) {
+        return ctx.reply('⚠️ Bu raqam allaqachon bazada mavjud.', backToAdmin());
+      }
+
+      const country = w.meta.country;
+      const adminId = ctx.from.id;
+      pendingNewNumber[adminId] = { country, phoneNumber: phoneRaw };
+
+      const statusMsg = await ctx.reply(`⏳ <code>+${phoneRaw}</code> uchun login boshlanmoqda...`, { parse_mode: 'HTML' });
+
+      try {
+        userbot.startLogin(adminId, phoneRaw, {
+          onCodeRequested: () => {
+            waiting[adminId] = { key: '_num_login_code', label: '' };
+            ctx.telegram.sendMessage(
+              adminId,
+              `📩 <b>+${phoneRaw}</b> akkauntiga Telegram tomonidan kod yuborildi.\nShu raqamning Telegram ilovasidan (yoki qayerga kelsa) kodni kiriting:`,
+              { parse_mode: 'HTML', ...cancelLoginKeyboard() }
+            ).catch(() => {});
+          },
+          onPasswordRequested: () => {
+            waiting[adminId] = { key: '_num_login_password', label: '' };
+            ctx.telegram.sendMessage(
+              adminId,
+              `🔒 Bu akkauntda ikki bosqichli parol (2FA) yoqilgan. Parolni kiriting:`,
+              { parse_mode: 'HTML', ...cancelLoginKeyboard() }
+            ).catch(() => {});
+          },
+          onSuccess: async (sessionString) => {
+            delete pendingNewNumber[adminId];
+            delete waiting[adminId];
+            try {
+              const doc = await NumberAccount.create({
+                country,
+                phoneNumber: phoneRaw,
+                sessionString,
+                status: 'available',
+              });
+              await userbot.startListening(doc, handleIncomingCode);
+              await ctx.telegram.sendMessage(
+                adminId,
+                `✅ <b>+${phoneRaw}</b> muvaffaqiyatli ulandi va sotuvga qoʻyildi!\n\n` +
+                `❗️ Narx sozlanmagan boʻlsa, "💰 Narxni sozlash" orqali ${countryName(country)} uchun narx kiriting — aks holda bu davlat xaridorlarga koʻrinmaydi.`,
+                { parse_mode: 'HTML', ...backToAdmin() }
+              );
+            } catch (e) {
+              await ctx.telegram.sendMessage(adminId, '❌ Saqlashda xato: ' + e.message, { parse_mode: 'HTML', ...backToAdmin() });
+            }
+          },
+          onError: (err) => {
+            delete pendingNewNumber[adminId];
+            delete waiting[adminId];
+            ctx.telegram.sendMessage(
+              adminId,
+              '❌ Login xatosi: ' + (err.message || String(err)),
+              { parse_mode: 'HTML', ...backToAdmin() }
+            ).catch(() => {});
+          },
+        });
+      } catch (e) {
+        delete pendingNewNumber[adminId];
+        return ctx.reply('❌ ' + e.message, backToAdmin());
+      }
+      return;
+    }
+
+    if (w.key === '_num_login_code') {
+      const code = ctx.message.text.trim();
+      const ok = userbot.submitCode(ctx.from.id, code);
+      if (!ok) {
+        delete waiting[ctx.from.id];
+        return ctx.reply('❌ Login sessiyasi topilmadi. Qaytadan urinib koʻring.', backToAdmin());
+      }
+      return ctx.reply('⏳ Tekshirilmoqda...');
+    }
+
+    if (w.key === '_num_login_password') {
+      const password = ctx.message.text.trim();
+      const ok = userbot.submitPassword(ctx.from.id, password);
+      if (!ok) {
+        delete waiting[ctx.from.id];
+        return ctx.reply('❌ Login sessiyasi topilmadi. Qaytadan urinib koʻring.', backToAdmin());
+      }
+      return ctx.reply('⏳ Tekshirilmoqda...');
+    }
+
+    if (w.key === '_num_price') {
+      const country = w.meta.country;
+      delete waiting[ctx.from.id];
+      const price = parseInt(ctx.message.text.trim(), 10);
+      if (isNaN(price) || price <= 0) {
+        return ctx.reply("❌ Iltimos, to'g'ri narx kiriting (so'mda).", backToAdmin());
+      }
+      await setNumberPrice(country, price);
+      return ctx.reply(`✅ ${countryName(country)} narxi ${price.toLocaleString()} so'm qilib belgilandi.`, backToAdmin());
     }
 
     const val = ctx.message.text.trim();
