@@ -48,6 +48,10 @@ function adminPanelKeyboard() {
       Markup.button.callback('💳 Karta', 'adm_card'),
       Markup.button.callback('📢 Majburiy kanallar', 'adm_channel'),
     ],
+    [
+      Markup.button.callback('💎 TON hamyon', 'adm_tonwallet'),
+      Markup.button.callback('💎 TON kursi', 'adm_tonrate'),
+    ],
     [Markup.button.callback('🔢 Raqamlar bazasi', 'adm_numbers')],
     [
       Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus'),
