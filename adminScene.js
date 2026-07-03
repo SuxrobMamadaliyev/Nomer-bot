@@ -11,6 +11,7 @@ const {
   numberListKeyboard,
   numberDetailKeyboard,
   cancelLoginKeyboard,
+  userDetailKeyboard,
 } = require('./keyboards');
 const { User, Activation, NumberAccount } = require('./models');
 const { countryName } = require('./countries');
@@ -71,9 +72,28 @@ async function showBalancesPage(ctx, page = 0) {
     `👥 <b>Foydalanuvchilar balansi</b>\n\n` +
     (lines.length ? lines.join('\n') : 'Foydalanuvchilar topilmadi.') +
     `\n\n💰 Jami balans (barcha foydalanuvchilar): <b>${totalBalance.toLocaleString()} so'm</b>\n` +
-    `📄 Sahifa: ${page + 1}/${totalPages}`;
+    `📄 Sahifa: ${page + 1}/${totalPages}\n\n` +
+    `👇 Boshqarish uchun foydalanuvchini tanlang.`;
 
-  await safeEdit(ctx, text, { parse_mode: 'HTML', ...balancesMenuKeyboard(page, totalPages) });
+  await safeEdit(ctx, text, { parse_mode: 'HTML', ...balancesMenuKeyboard(page, totalPages, users) });
+}
+
+// Bitta foydalanuvchi haqida to'liq ma'lumot va boshqaruv tugmalarini ko'rsatadi
+async function showUserDetail(ctx, telegramId) {
+  const u = await User.findOne({ telegramId }).lean();
+  if (!u) {
+    return safeEdit(ctx, '❌ Foydalanuvchi topilmadi.', { parse_mode: 'HTML', ...backToAdmin() });
+  }
+  const name = u.username ? `@${u.username}` : (u.fullName || '—');
+  const text =
+    `👤 <b>Foydalanuvchi</b>\n${DIVIDER_CHAR}\n` +
+    `🆔 ID: <code>${u.telegramId}</code>\n` +
+    `📛 Ism/Username: ${name}\n` +
+    `👛 Balans: <b>${(u.balance || 0).toLocaleString()} so'm</b>\n` +
+    `💸 Jami sarflangan: <b>${(u.totalSpent || 0).toLocaleString()} so'm</b>\n` +
+    `👥 Referallar soni: <b>${u.referralCount || 0}</b>\n` +
+    `📊 Holat: <b>${u.isBanned ? '🚫 Bloklangan' : '✅ Faol'}</b>`;
+  return safeEdit(ctx, text, { parse_mode: 'HTML', ...userDetailKeyboard(u.telegramId, !!u.isBanned) });
 }
 
 // Barcha foydalanuvchilarga xabar yuborish (cursor orqali xotirani tejab, birma-bir yuboriladi).
@@ -179,7 +199,8 @@ function adminScene() {
     adm_starsrate:  { key: 'star_to_uzs',        label: "1 Telegram Star necha so'mligini kiriting (masalan: 220)" },
     adm_card:       { key: '_card_combo',        label: 'Karta raqami va egasini kiriting:\nFormat: KARTA_RAQAMI|Ism Familiya\nMasalan: 8600 1234 5678 9012|Karimov Karim' },
     adm_support:    { key: 'support_username',   label: 'Support username kiriting (masalan: @admin_support)' },
-    adm_refbonus:   { key: 'referral_bonus_uzs', label: "Referal uchun beriladigan bonus miqdorini kiriting, so'mda (masalan: 3000)" },
+    adm_refbonus:   { key: 'referral_bonus_uzs', label: "Referal uchun beriladigan bonus miqdorini kiriting, so'mda (masalan: 100)" },
+    adm_mindeposit: { key: 'min_balance_uzs',    label: "Minimal depozit (to'ldirish) summasini kiriting, so'mda (masalan: 5000)" },
     adm_proofchannel: {
       key: 'proof_channel',
       label: "Isbot kanali username kiriting (masalan: @kanalim).\n❗️Bot shu kanalda admin boʻlishi shart, aks holda postlar yuborilmaydi.\nOʻchirish uchun \"-\" belgisini yuboring.",
@@ -418,6 +439,74 @@ function adminScene() {
         { parse_mode: 'HTML', ...backToAdmin() }
       );
       return;
+    }
+
+    // ---- FOYDALANUVCHINI BOSHQARISH (balans berish/ayirish, ban/unban) ----
+
+    if (data === 'adm_user_search') {
+      await ctx.answerCbQuery();
+      waiting[ctx.from.id] = {
+        key: '_user_search',
+        label: 'Foydalanuvchi Telegram ID yoki @username kiriting.',
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
+      );
+    }
+
+    if (data.startsWith('adm_uview_')) {
+      await ctx.answerCbQuery();
+      const telegramId = parseInt(data.replace('adm_uview_', ''), 10);
+      return showUserDetail(ctx, telegramId);
+    }
+
+    if (data.startsWith('adm_uaddbal_')) {
+      await ctx.answerCbQuery();
+      const telegramId = parseInt(data.replace('adm_uaddbal_', ''), 10);
+      waiting[ctx.from.id] = {
+        key: '_user_addbal',
+        label: "Qo'shiladigan summani kiriting, so'mda (masalan: 10000)",
+        meta: { telegramId },
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_uview_${telegramId}`)]]) }
+      );
+    }
+
+    if (data.startsWith('adm_usubbal_')) {
+      await ctx.answerCbQuery();
+      const telegramId = parseInt(data.replace('adm_usubbal_', ''), 10);
+      waiting[ctx.from.id] = {
+        key: '_user_subbal',
+        label: "Ayiriladigan summani kiriting, so'mda (masalan: 10000)",
+        meta: { telegramId },
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_uview_${telegramId}`)]]) }
+      );
+    }
+
+    if (data.startsWith('adm_uban_')) {
+      const telegramId = parseInt(data.replace('adm_uban_', ''), 10);
+      await User.updateOne({ telegramId }, { $set: { isBanned: true, bannedAt: new Date() } });
+      await ctx.answerCbQuery('🚫 Bloklandi');
+      try {
+        await ctx.telegram.sendMessage(telegramId, '🚫 Siz botdan foydalanish huquqidan mahrum qilindingiz.\nBatafsil maʼlumot uchun admin bilan bogʻlaning.');
+      } catch {}
+      return showUserDetail(ctx, telegramId);
+    }
+
+    if (data.startsWith('adm_uunban_')) {
+      const telegramId = parseInt(data.replace('adm_uunban_', ''), 10);
+      await User.updateOne({ telegramId }, { $set: { isBanned: false }, $unset: { bannedAt: '' } });
+      await ctx.answerCbQuery('✅ Blok olib tashlandi');
+      try {
+        await ctx.telegram.sendMessage(telegramId, '✅ Sizga botdan foydalanish huquqi qaytarildi.');
+      } catch {}
+      return showUserDetail(ctx, telegramId);
     }
 
     if (data === 'adm_broadcast') {
@@ -671,6 +760,60 @@ function adminScene() {
       return ctx.reply('⏳ Tekshirilmoqda...');
     }
 
+    if (w.key === '_user_search') {
+      delete waiting[ctx.from.id];
+      let val = ctx.message.text.trim();
+      let user;
+      if (val.startsWith('@')) {
+        user = await User.findOne({ username: val.slice(1) }).lean();
+      } else {
+        const id = parseInt(val.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(id)) user = await User.findOne({ telegramId: id }).lean();
+      }
+      if (!user) {
+        return ctx.reply('❌ Foydalanuvchi topilmadi.', backToAdmin());
+      }
+      return showUserDetail(ctx, user.telegramId);
+    }
+
+    if (w.key === '_user_addbal') {
+      const telegramId = w.meta.telegramId;
+      delete waiting[ctx.from.id];
+      const amount = parseFloat(ctx.message.text.replace(/[^0-9.]/g, ''));
+      if (isNaN(amount) || amount <= 0) {
+        return ctx.reply("❌ Iltimos, to'g'ri summa kiriting.", backToAdmin());
+      }
+      const updated = await User.findOneAndUpdate(
+        { telegramId },
+        { $inc: { balance: amount } },
+        { upsert: true, new: true }
+      );
+      try {
+        await ctx.telegram.sendMessage(telegramId, `💰 Balansingizga admin tomonidan ${amount.toLocaleString()} so'm qo'shildi.\n👛 Joriy balans: ${updated.balance.toLocaleString()} so'm`);
+      } catch {}
+      await ctx.reply(`✅ ${amount.toLocaleString()} so'm qo'shildi. Yangi balans: ${updated.balance.toLocaleString()} so'm`);
+      return showUserDetail(ctx, telegramId);
+    }
+
+    if (w.key === '_user_subbal') {
+      const telegramId = w.meta.telegramId;
+      delete waiting[ctx.from.id];
+      const amount = parseFloat(ctx.message.text.replace(/[^0-9.]/g, ''));
+      if (isNaN(amount) || amount <= 0) {
+        return ctx.reply("❌ Iltimos, to'g'ri summa kiriting.", backToAdmin());
+      }
+      const updated = await User.findOneAndUpdate(
+        { telegramId },
+        { $inc: { balance: -amount } },
+        { upsert: true, new: true }
+      );
+      try {
+        await ctx.telegram.sendMessage(telegramId, `⚠️ Balansingizdan admin tomonidan ${amount.toLocaleString()} so'm ayirildi.\n👛 Joriy balans: ${updated.balance.toLocaleString()} so'm`);
+      } catch {}
+      await ctx.reply(`✅ ${amount.toLocaleString()} so'm ayirildi. Yangi balans: ${updated.balance.toLocaleString()} so'm`);
+      return showUserDetail(ctx, telegramId);
+    }
+
     if (w.key === '_num_price') {
       const country = w.meta.country;
       delete waiting[ctx.from.id];
@@ -720,7 +863,7 @@ function adminScene() {
         }
       } else {
         const numVal = parseFloat(val);
-        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs', 'referral_bonus_uzs'].includes(w.key)) {
+        if (['markup_percent', 'usd_to_uzs', 'topup_fee_percent', 'star_to_uzs', 'referral_bonus_uzs', 'min_balance_uzs'].includes(w.key)) {
           if (isNaN(numVal) || numVal < 0) {
             return ctx.reply("❌ Iltimos, to'g'ri raqam kiriting.", backToAdmin());
           }
