@@ -9,7 +9,10 @@ const userSchema = new mongoose.Schema({
   totalSpent: { type: Number, default: 0 },
   totalFeeCollected: { type: Number, default: 0 }, // Balans to'ldirishda ushlab qolingan komissiya
   referredBy: Number,
+  pendingReferrer: Number, // /start orqali kelgan referal ID — majburiy kanallarga aʼzo boʻlgach tasdiqlanadi
   referralCount: { type: Number, default: 0 },
+  isBanned: { type: Boolean, default: false },
+  bannedAt: Date,
   createdAt: { type: Date, default: Date.now },
 });
 
