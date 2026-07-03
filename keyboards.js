@@ -89,6 +89,7 @@ function adminPanelKeyboard() {
     [Markup.button.callback('🧾 Isbot kanali', 'adm_proofchannel')],
     [Markup.button.callback('🖼 Bosh menyu rasmi', 'adm_image')],
     [Markup.button.callback('👥 Foydalanuvchilar balansi', 'adm_balances')],
+    [Markup.button.callback('📣 Barchaga xabar yuborish', 'adm_broadcast')],
     [Markup.button.callback('📊 Statistika', 'adm_stats')],
     [Markup.button.callback('🔙 Bosh menyu', 'back_main')],
   ]);
