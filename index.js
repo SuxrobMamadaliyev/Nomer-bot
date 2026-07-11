@@ -9,6 +9,7 @@ const { requireChannelSub } = require('./channelSub');
 const { countryName } = require('./countries');
 const { getSetting } = require('./settings');
 const userbot = require('./userbot');
+const heroSms = require('./heroSms');
 
 const { adminScene, showAdminPanel } = require('./adminScene');
 const { topupScene, showTopupMenu, approveTopup, creditStarsPayment } = require('./topupScene');
@@ -334,6 +335,17 @@ bot.command('addbalance', async ctx => {
   try {
     await ctx.telegram.sendMessage(targetId, `💰 Balansingizga ${amount.toLocaleString()} so'm qo'shildi!`);
   } catch {}
+});
+
+// ================= ADMIN: HeroSMS balansini tekshirish =================
+bot.command('herobalance', async ctx => {
+  if (!isAdmin(ctx.from.id)) return;
+  try {
+    const balance = await heroSms.getBalance();
+    await ctx.reply(`🦸 HeroSMS balans: $${balance.toFixed(2)}`);
+  } catch (e) {
+    await ctx.reply(`❌ HeroSMS balansini olishda xato: ${e.message}`);
+  }
 });
 
 // ================= TELEGRAM STARS TO'LOVI =================
