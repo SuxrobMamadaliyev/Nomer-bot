@@ -1,23 +1,24 @@
-// Sotuvda ishlatiladigan davlatlar roʻyxati (HeroSMS'dan mustaqil — bu endi
-// o'z raqamlar bazamiz uchun ishlatiladi). Admin panelda raqam qo'shishda
-// shu roʻyxatdan davlat tanlanadi.
+// Sotuvda ishlatiladigan davlatlar roʻyxati.
+// Har bir davlat ikkita manbadan kelishi mumkin:
+//   1) Admin qo'shgan userbot raqamlari (NumberAccount bazasi)
+//   2) HeroSMS API orqali jonli sotib olinadigan raqamlar
+// "heroName" — HeroSMS'ning getCountries javobidagi inglizcha nomi bilan
+// moslashtirish uchun ishlatiladi (heroSms.resolveCountryId orqali).
+//
+// Roʻyxat atayin qisqartirilgan: juda arzon, lekin kod yetib kelish foizi past
+// bo'lgan davlatlar (Indoneziya, Filippin, Myanma va h.k.) olib tashlangan —
+// faqat narxi hamyonbop VA SMS aniq yetib keladigan davlatlar qoldirilgan.
 const COUNTRIES = [
-  { code: 'uz', name: '🇺🇿 Oʻzbekiston' },
-  { code: 'ru', name: '🇷🇺 Rossiya' },
-  { code: 'id', name: '🇮🇩 Indoneziya' },
-  { code: 'kz', name: '🇰🇿 Qozogʻiston' },
-  { code: 'ph', name: '🇵🇭 Filippin' },
-  { code: 'ua', name: '🇺🇦 Ukraina' },
-  { code: 'cn', name: '🇨🇳 Xitoy' },
-  { code: 'us', name: '🇺🇸 AQSh' },
-  { code: 'in', name: '🇮🇳 Hindiston' },
-  { code: 'tr', name: '🇹🇷 Turkiya' },
-  { code: 'gb', name: '🇬🇧 Buyuk Britaniya' },
-  { code: 'my', name: '🇲🇾 Malayziya' },
-  { code: 'eg', name: '🇪🇬 Misr' },
-  { code: 'kg', name: '🇰🇬 Qirgʻiziston' },
-  { code: 'tj', name: '🇹🇯 Tojikiston' },
-  { code: 'ot', name: '🌍 Boshqa' },
+  { code: 'uz', name: '🇺🇿 Oʻzbekiston', heroName: 'Uzbekistan' },
+  { code: 'ru', name: '🇷🇺 Rossiya', heroName: 'Russia' },
+  { code: 'kz', name: '🇰🇿 Qozogʻiston', heroName: 'Kazakhstan' },
+  { code: 'kg', name: '🇰🇬 Qirgʻiziston', heroName: 'Kyrgyzstan' },
+  { code: 'ua', name: '🇺🇦 Ukraina', heroName: 'Ukraine' },
+  { code: 'us', name: '🇺🇸 AQSh', heroName: 'USA' },
+  { code: 'gb', name: '🇬🇧 Buyuk Britaniya', heroName: 'England' },
+  { code: 'tr', name: '🇹🇷 Turkiya', heroName: 'Turkey' },
+  { code: 'in', name: '🇮🇳 Hindiston', heroName: 'India' },
+  { code: 'cn', name: '🇨🇳 Xitoy', heroName: 'China' },
 ];
 
 function findCountry(code) {
