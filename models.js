@@ -33,6 +33,7 @@ const activationSchema = new mongoose.Schema({
   code: String,
   source: { type: String, default: 'userbot' }, // userbot (admin bazasi) | herosms (HeroSMS API)
   heroActivationId: String, // faqat source: 'herosms' bo'lganda to'ldiriladi
+  heroServiceLabel: String, // masalan "WhatsApp" — faqat source: 'herosms' bo'lganda
   createdAt: { type: Date, default: Date.now },
 });
 
