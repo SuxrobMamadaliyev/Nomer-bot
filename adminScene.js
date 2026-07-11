@@ -16,14 +16,23 @@ const {
 const { User, Activation, NumberAccount } = require('./models');
 const { countryName } = require('./countries');
 const userbot = require('./userbot');
+const heroSms = require('./heroSms');
 const { handleIncomingCode } = require('./buyScene');
 
 // Admin panel asosiy ko'rinish
 async function showAdminPanel(ctx) {
   const s = await getAllSettings();
   const channels = s.force_sub_channels || [];
+  let heroBalanceLine = '';
+  try {
+    const bal = await heroSms.getBalance();
+    heroBalanceLine = `🦸 HeroSMS balans: <b>$${bal.toFixed(2)}</b>\n`;
+  } catch {
+    heroBalanceLine = `🦸 HeroSMS balans: <b>—</b> (ulanmagan/xato)\n`;
+  }
   const text =
     `⚙️ <b>Admin Panel</b>\n\n` +
+    heroBalanceLine +
     `💰 Markup (raqam narxiga): <b>${s.markup_percent}%</b>\n` +
     `📉 Toʻldirish komissiyasi: <b>${s.topup_fee_percent}%</b>\n` +
     `⭐ Stars kursi: <b>1⭐ = ${s.star_to_uzs.toLocaleString()} so'm</b>\n` +
