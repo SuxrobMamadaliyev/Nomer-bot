@@ -31,6 +31,8 @@ const activationSchema = new mongoose.Schema({
   pricePaid: Number, // UZS
   status: { type: String, default: 'pending' }, // pending | success | cancelled | timeout
   code: String,
+  source: { type: String, default: 'userbot' }, // userbot (admin bazasi) | herosms (HeroSMS API)
+  heroActivationId: String, // faqat source: 'herosms' bo'lganda to'ldiriladi
   createdAt: { type: Date, default: Date.now },
 });
 
