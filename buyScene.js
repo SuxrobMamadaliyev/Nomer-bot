@@ -61,8 +61,18 @@ async function postProofToChannel(ctx, { countryName: cName, phoneNumber }) {
   }
 }
 
-// ---- HeroSMS narxlarini keshlab olish (bir so'rovda barcha davlatlar) ----
-let heroPricesCache = null;
+// ---- HeroSMS narxlarini keshlab olish (bir necha mashhur xizmat bo'yicha) ----
+// Faqat Telegram emas — O'zbekistonda ommaviy ishlatiladigan servislar bo'yicha ham
+// tekshiramiz va har bir davlat uchun eng arzon (va mavjud) variantni tanlaymiz.
+const POPULAR_SERVICES = [
+  { code: 'tg', label: 'Telegram' },
+  { code: 'wa', label: 'WhatsApp' },
+  { code: 'ig', label: 'Instagram' },
+  { code: 'fb', label: 'Facebook' },
+  { code: 'go', label: 'Google' },
+];
+
+let heroPricesCache = null; // { [countryCode]: { service, label, cost, count } } — eng arzoni
 let heroPricesCacheAt = 0;
 const HERO_PRICE_TTL = 3 * 60 * 1000; // 3 daqiqa
 
@@ -85,21 +95,36 @@ async function getHeroIdToCodeMap() {
   return map;
 }
 
-// countryCode -> { cost, count } (faqat mavjud bo'lganlar). Xato bo'lsa {} qaytaradi.
+// countryCode -> { service, label, cost, count } — barcha POPULAR_SERVICES orasidan
+// har bir davlat uchun eng arzon VA mavjud bo'lgan xizmatni tanlaydi.
 async function getHeroOffersByCode() {
   if (heroPricesCache && Date.now() - heroPricesCacheAt < HERO_PRICE_TTL) {
     return heroPricesCache;
   }
   try {
-    const [idToCode, prices] = await Promise.all([
-      getHeroIdToCodeMap(),
-      heroSms.getPricesForService(),
-    ]);
+    const idToCode = await getHeroIdToCodeMap();
+    const perService = await Promise.all(
+      POPULAR_SERVICES.map(async svc => {
+        try {
+          return { svc, prices: await heroSms.getPricesForService(svc.code) };
+        } catch (e) {
+          console.error(`HeroSMS narxlarini olishda xato (${svc.code}):`, e.message);
+          return { svc, prices: {} };
+        }
+      })
+    );
+
     const result = {};
-    for (const countryId of Object.keys(prices)) {
-      const code = idToCode[countryId];
-      if (!code) continue; // roʻyxatimizda yo'q davlat — e'tiborsiz qoldiramiz
-      result[code] = prices[countryId];
+    for (const { svc, prices } of perService) {
+      for (const countryId of Object.keys(prices)) {
+        const code = idToCode[countryId];
+        if (!code) continue; // roʻyxatimizda yo'q davlat — e'tiborsiz qoldiramiz
+        const entry = prices[countryId];
+        const current = result[code];
+        if (!current || entry.cost < current.cost) {
+          result[code] = { service: svc.code, label: svc.label, cost: entry.cost, count: entry.count };
+        }
+      }
     }
     heroPricesCache = result;
     heroPricesCacheAt = Date.now();
@@ -124,6 +149,12 @@ async function heroCountryIdFor(countryCode) {
 // Har bir davlat uchun umumiy taklifni hisoblaydi: admin bazasi + HeroSMS.
 // Narx: admin qo'lda belgilagan number_prices ustuvor, aks holda HeroSMS narxidan
 // (markup bilan) hisoblanadi.
+//
+// MUHIM: admin panel orqali istalgan davlat kodi bilan raqam qo'shish mumkin (COUNTRIES
+// roʻyxati faqat HeroSMS bilan moslashtirish uchun "tavsiya etilgan" roʻyxat, cheklov emas).
+// Shu sabab bu yerda faqat COUNTRIES emas, balki admin bazasida haqiqatda mavjud bo'lgan
+// barcha davlat kodlari + HeroSMS'dagi davlatlar birlashtiriladi — aks holda admin
+// qo'shgan, lekin "tavsiya" roʻyxatida yo'q davlatlar xaridorlarga ko'rinmay qoladi.
 async function getCountryOffers() {
   const adminCounts = await NumberAccount.aggregate([
     { $match: { status: 'available' } },
@@ -135,21 +166,24 @@ async function getCountryOffers() {
   const manualPrices = (await getSetting('number_prices')) || {};
   const heroOffers = await getHeroOffersByCode();
 
+  // Admin bazasidagi barcha davlat kodlari + HeroSMS'da mavjud kodlar — ikkalasi birlashtiriladi
+  const allCodes = new Set([...Object.keys(adminAvailable), ...Object.keys(heroOffers)]);
+
   const offers = [];
-  for (const c of COUNTRIES) {
-    const adminCount = adminAvailable[c.code] || 0;
-    const hero = heroOffers[c.code];
+  for (const code of allCodes) {
+    const adminCount = adminAvailable[code] || 0;
+    const hero = heroOffers[code];
     const heroCount = hero ? hero.count : 0;
     const totalAvailable = adminCount + heroCount;
     if (!totalAvailable) continue;
 
-    let price = manualPrices[c.code] || 0;
+    let price = manualPrices[code] || 0;
     if (!price && hero) price = await calcPriceUZS(hero.cost);
-    if (!price) continue;
+    if (!price) continue; // narx sozlanmagan bo'lsa — ko'rsatilmaydi
 
     offers.push({
-      code: c.code,
-      name: c.name,
+      code,
+      name: countryName(code),
       available: totalAvailable,
       price,
     });
@@ -192,7 +226,13 @@ async function getOfferFor(countryCode) {
   let price = manualPrice;
   if (!price && hero) price = await calcPriceUZS(hero.cost);
 
-  return { adminCount, heroCount, total: adminCount + heroCount, price };
+  return {
+    adminCount,
+    heroCount,
+    total: adminCount + heroCount,
+    price,
+    heroService: hero ? hero.service : null,
+  };
 }
 
 async function handleCountrySelect(ctx, countryCode) {
@@ -232,7 +272,7 @@ async function handleConfirm(ctx, countryCode) {
   await ctx.answerCbQuery('⏳ Raqam biriktirilmoqda...');
 
   const cnt = findCountry(countryCode) || { code: countryCode, name: countryName(countryCode) };
-  const { price } = await getOfferFor(countryCode);
+  const { price, heroService } = await getOfferFor(countryCode);
   const user = await User.findOne({ telegramId: ctx.from.id });
 
   if (!price) {
@@ -251,14 +291,15 @@ async function handleConfirm(ctx, countryCode) {
     { new: true }
   );
 
-  let phoneNumber, source, heroActivationId, numberAccountId;
+  let phoneNumber, source, heroActivationId, numberAccountId, heroServiceLabel;
 
   if (numberDoc) {
     phoneNumber = numberDoc.phoneNumber;
     source = 'userbot';
     numberAccountId = numberDoc._id;
   } else {
-    // 2-urinish: admin bazasida yo'q — HeroSMS API orqali sotib olamiz
+    // 2-urinish: admin bazasida yo'q — HeroSMS API orqali sotib olamiz.
+    // Eng arzon topilgan xizmat (Telegram/WhatsApp/Instagram/...) bo'yicha so'raymiz.
     const heroId = await heroCountryIdFor(countryCode);
     if (heroId == null) {
       return safeEdit(ctx,
@@ -266,10 +307,12 @@ async function handleConfirm(ctx, countryCode) {
         { parse_mode: 'HTML', ...backToMain() }
       );
     }
+    const svc = POPULAR_SERVICES.find(s => s.code === heroService) || POPULAR_SERVICES[0];
     try {
-      const bought = await heroSms.getNumber({ country: heroId });
+      const bought = await heroSms.getNumber({ country: heroId, service: svc.code });
       phoneNumber = bought.phoneNumber;
       heroActivationId = bought.activationId;
+      heroServiceLabel = svc.label;
       source = 'herosms';
       heroSms.markReady(heroActivationId).catch(() => {}); // muhim emas, fonda
     } catch (e) {
@@ -297,6 +340,7 @@ async function handleConfirm(ctx, countryCode) {
     status: 'pending',
     source,
     heroActivationId,
+    heroServiceLabel,
   });
 
   const waitMinutes = (await getSetting('number_wait_minutes')) || 5;
@@ -305,6 +349,7 @@ async function handleConfirm(ctx, countryCode) {
     `✅ <b>Raqam tayyor!</b>\n${DIVIDER}\n` +
     `📱 Raqam: <code>+${phoneNumber}</code>\n` +
     `🌍 Mamlakat: <b>${cnt.name}</b>\n` +
+    (heroServiceLabel ? `📲 Xizmat: <b>${heroServiceLabel}</b>\n` : '') +
     `💰 To'landi: <b>${price.toLocaleString()} so'm</b>\n${DIVIDER}\n` +
     `⏳ Kod kutilmoqda (${waitMinutes} daqiqagacha)...\n` +
     `📩 Kod kelishi bilan avtomatik shu yerga yuboriladi.`,
