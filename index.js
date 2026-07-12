@@ -19,6 +19,10 @@ const {
   showCountries,
   handleCountrySelect,
   handleConfirm,
+  showServices,
+  showCountriesForService,
+  handleServiceCountrySelect,
+  handleServiceConfirm,
   handleCancelActivation,
   handleIncomingCode,
   startExpiryWatchdog,
@@ -251,10 +255,24 @@ bot.action('cabinet', async ctx => {
 });
 
 // ================= BUY NUMBER =================
+// "📱 Raqam olish": avval XIZMAT tanlanadi, keyin o'sha xizmat uchun DAVLAT.
 bot.action('buy_number', async ctx => {
-  await showCountries(ctx);
+  await showServices(ctx);
 });
 
+bot.action(/^buysvc_(.+)$/, async ctx => {
+  await showCountriesForService(ctx, ctx.match[1]);
+});
+
+bot.action(/^svccnt_([^:]+):(.+)$/, async ctx => {
+  await handleServiceCountrySelect(ctx, ctx.match[1], ctx.match[2]);
+});
+
+bot.action(/^svcconfirm_([^:]+):(.+)$/, async ctx => {
+  await handleServiceConfirm(ctx, ctx.match[1], ctx.match[2]);
+});
+
+// "🔥 Arzon nomerlar": barcha davlatlar to'g'ridan-to'g'ri (eng arzon xizmat bilan)
 bot.action('cheap_numbers', async ctx => {
   await showCountries(ctx, { title: '🔥 <b>Eng arzon davlatlar</b>' });
 });
