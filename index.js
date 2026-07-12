@@ -6,7 +6,7 @@ const { User, Activation, NumberAccount } = require('./models');
 const { isAdmin, adminOnly, ADMIN_IDS } = require('./admin');
 const { mainMenu, backToMain, sendMainMenu, safeEdit } = require('./keyboards');
 const { requireChannelSub } = require('./channelSub');
-const { countryName } = require('./countries');
+const { countryName, loadCustomCountries } = require('./countries');
 const { getSetting } = require('./settings');
 const userbot = require('./userbot');
 const heroSms = require('./heroSms');
@@ -22,6 +22,7 @@ const {
   handleCancelActivation,
   handleIncomingCode,
   startExpiryWatchdog,
+  loadCustomServices,
 } = require('./buyScene');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -32,6 +33,14 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log('✅ MongoDB ulandi');
+    // Admin panel orqali qo'shilgan davlat/xizmatlarni DB'dan tiklaydi.
+    try {
+      await loadCustomCountries();
+      await loadCustomServices();
+      console.log('✅ Qoʻshimcha davlat/xizmatlar yuklandi');
+    } catch (e) {
+      console.error('❌ Qoʻshimcha davlat/xizmatlarni yuklashda xato:', e.message);
+    }
     // Bot qayta ishga tushganda (Render uxlab qolishi / qayta deploy) barcha login qilingan
     // raqamlar uchun userbot tinglovchilarini qayta ulaydi — shunda kod kelishi to'xtamaydi.
     try {
