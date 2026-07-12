@@ -14,6 +14,7 @@ const {
   numberDetailKeyboard,
   cancelLoginKeyboard,
   userDetailKeyboard,
+  styledButton,
 } = require('./keyboards');
 const { User, Activation, NumberAccount } = require('./models');
 const { countryName, COUNTRIES, addCountry, removeCountry } = require('./countries');
@@ -140,11 +141,11 @@ async function broadcastToAllUsers(ctx, content) {
 function channelMenuKeyboard(channels) {
   const rows = [];
   channels.forEach((ch, i) => {
-    rows.push([Markup.button.callback(`🗑 ${ch}`, `adm_channel_del_${i}`)]);
+    rows.push([styledButton(`🗑 ${ch}`, `adm_channel_del_${i}`, 'danger')]);
   });
-  rows.push([Markup.button.callback('➕ Kanal qoʻshish', 'adm_channel_add')]);
+  rows.push([styledButton('➕ Kanal qoʻshish', 'adm_channel_add', 'success')]);
   if (channels.length) {
-    rows.push([Markup.button.callback('🚫 Barchasini oʻchirish', 'adm_channel_clear')]);
+    rows.push([styledButton('🚫 Barchasini oʻchirish', 'adm_channel_clear', 'danger')]);
   }
   rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
   return Markup.inlineKeyboard(rows);
@@ -152,9 +153,9 @@ function channelMenuKeyboard(channels) {
 
 function imageMenuKeyboard(hasImage) {
   const rows = [];
-  rows.push([Markup.button.callback(hasImage ? '✏️ Rasmni almashtirish' : '➕ Rasm qoʻshish', 'adm_image_set')]);
+  rows.push([styledButton(hasImage ? '✏️ Rasmni almashtirish' : '➕ Rasm qoʻshish', 'adm_image_set', 'primary')]);
   if (hasImage) {
-    rows.push([Markup.button.callback('🗑 Rasmni oʻchirish', 'adm_image_remove')]);
+    rows.push([styledButton('🗑 Rasmni oʻchirish', 'adm_image_remove', 'danger')]);
   }
   rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
   return Markup.inlineKeyboard(rows);
@@ -320,7 +321,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_catalog')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'adm_catalog', 'danger')]]) }
       );
     }
 
@@ -335,7 +336,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_catalog')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'adm_catalog', 'danger')]]) }
       );
     }
 
@@ -408,7 +409,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_numbers')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'adm_numbers', 'danger')]]) }
       );
     }
 
@@ -441,7 +442,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_num_country_${country}`)]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', `adm_num_country_${country}`, 'danger')]]) }
       );
     }
 
@@ -510,7 +511,7 @@ function adminScene() {
       };
       return safeEdit(ctx, 
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_channel')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'adm_channel', 'danger')]]) }
       );
     }
 
@@ -560,7 +561,7 @@ function adminScene() {
       waitingPhoto[ctx.from.id] = true;
       return safeEdit(ctx, 
         '🖼 Bosh menyu uchun rasm yuboring (surat sifatida, fayl emas).',
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_image')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'adm_image', 'danger')]]) }
       );
     }
 
@@ -612,7 +613,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'admin_panel', 'danger')]]) }
       );
     }
 
@@ -632,7 +633,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_uview_${telegramId}`)]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', `adm_uview_${telegramId}`, 'danger')]]) }
       );
     }
 
@@ -646,7 +647,7 @@ function adminScene() {
       };
       return safeEdit(ctx,
         `✏️ ${waiting[ctx.from.id].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', `adm_uview_${telegramId}`)]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', `adm_uview_${telegramId}`, 'danger')]]) }
       );
     }
 
@@ -678,7 +679,7 @@ function adminScene() {
         `📣 <b>Barchaga xabar yuborish</b>\n\n` +
         `Yubormoqchi boʻlgan xabar matnini kiriting yoki rasm (izoh bilan) yuboring.\n\n` +
         `ℹ️ HTML formatlash qoʻllab-quvvatlanadi (masalan: <b>qalin</b>, <i>qiya</i>).`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'admin_panel', 'danger')]]) }
       );
     }
 
@@ -757,7 +758,7 @@ function adminScene() {
       waiting[ctx.from.id] = promptMap[data];
       await safeEdit(ctx, 
         `✏️ ${promptMap[data].label}`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'admin_panel')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'admin_panel', 'danger')]]) }
       );
       return;
     }
@@ -777,7 +778,7 @@ function adminScene() {
       pendingBroadcast[ctx.from.id] = { type: 'photo', photo: fileId, caption };
 
       const confirmKb = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Yuborish', 'adm_broadcast_send'), Markup.button.callback('❌ Bekor', 'adm_broadcast_cancel')],
+        [styledButton('✅ Yuborish', 'adm_broadcast_send', 'success'), styledButton('❌ Bekor', 'adm_broadcast_cancel', 'danger')],
       ]);
       try {
         await ctx.replyWithPhoto(fileId, {
@@ -816,7 +817,7 @@ function adminScene() {
       pendingBroadcast[ctx.from.id] = { type: 'text', text };
 
       const confirmKb = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Yuborish', 'adm_broadcast_send'), Markup.button.callback('❌ Bekor', 'adm_broadcast_cancel')],
+        [styledButton('✅ Yuborish', 'adm_broadcast_send', 'success'), styledButton('❌ Bekor', 'adm_broadcast_cancel', 'danger')],
       ]);
       try {
         await ctx.reply(`📣 <b>Preview</b>\n${DIVIDER_CHAR}\n${text}`, { parse_mode: 'HTML', ...confirmKb });
