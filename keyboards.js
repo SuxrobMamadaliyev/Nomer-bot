@@ -2,15 +2,25 @@ const { Markup } = require('telegraf');
 const { COUNTRIES } = require('./countries');
 const { getSetting } = require('./settings');
 
+// Telegram Bot API 9.4 (2026-02-09) dan buyon tugmalarga rang berish mumkin:
+// style: 'primary' (koʻk — asosiy harakat), 'success' (yashil — ijobiy/tasdiq),
+// 'danger' (qizil — bekor qilish/oʻchirish). Telegraf 4.16 hali buni typing
+// darajasida bilmaydi, shu sabab callback tugmasiga qoʻlda qoʻshamiz.
+function styledButton(text, data, style) {
+  const btn = Markup.button.callback(text, data);
+  if (style) btn.style = style;
+  return btn;
+}
+
 function mainMenu(isAdmin = false) {
   const rows = [
-    [Markup.button.callback('🔥 Arzon nomerlar', 'cheap_numbers')],
+    [styledButton('🔥 Arzon nomerlar', 'cheap_numbers', 'success')],
     [
-      Markup.button.callback('📱 Raqam olish', 'buy_number'),
+      styledButton('📱 Raqam olish', 'buy_number', 'primary'),
       Markup.button.callback('👤 Kabinet', 'cabinet'),
     ],
     [
-      Markup.button.callback("👛 Balans to'ldirish", 'topup'),
+      styledButton("👛 Balans to'ldirish", 'topup', 'success'),
       Markup.button.callback('❓ Yordam', 'help'),
     ],
     [Markup.button.callback('🎁 Referal', 'referral_info')],
@@ -37,7 +47,7 @@ function countriesForSaleKeyboard(offers) {
 // "📱 Raqam olish" bosilganda birinchi chiqadigan XIZMATLAR roʻyxati.
 // services: [{ code, label }]
 function servicesKeyboard(services) {
-  const buttons = services.map(s => Markup.button.callback(s.label, `buysvc_${s.code}`));
+  const buttons = services.map(s => styledButton(s.label, `buysvc_${s.code}`, 'primary'));
   const rows = [];
   for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
   rows.push([Markup.button.callback('🔙 Bosh menyu', 'back_main')]);
@@ -60,8 +70,8 @@ function countriesForServiceKeyboard(serviceCode, offers) {
 // Xizmat + davlat tanlangandan keyingi tasdiqlash tugmasi
 function confirmBuyServiceKeyboard(serviceCode, countryCode) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Tasdiqlash', `svcconfirm_${serviceCode}:${countryCode}`)],
-    [Markup.button.callback('❌ Bekor qilish', 'back_main')],
+    [styledButton('✅ Tasdiqlash', `svcconfirm_${serviceCode}:${countryCode}`, 'success')],
+    [styledButton('❌ Bekor qilish', 'back_main', 'danger')],
   ]);
 }
 
@@ -114,7 +124,7 @@ function balancesMenuKeyboard(page, totalPages, users = []) {
   });
   if (navRow.length) rows.push(navRow);
   rows.push([Markup.button.callback('🔍 ID/username boʻyicha qidirish', 'adm_user_search')]);
-  rows.push([Markup.button.callback('🗑 Barcha balanslarni 0 qilish', 'adm_balances_reset_confirm')]);
+  rows.push([styledButton('🗑 Barcha balanslarni 0 qilish', 'adm_balances_reset_confirm', 'danger')]);
   rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
   return Markup.inlineKeyboard(rows);
 }
@@ -123,14 +133,14 @@ function balancesMenuKeyboard(page, totalPages, users = []) {
 function userDetailKeyboard(telegramId, isBanned) {
   const rows = [
     [
-      Markup.button.callback('➕ Balans qoʻshish', `adm_uaddbal_${telegramId}`),
-      Markup.button.callback('➖ Balans ayirish', `adm_usubbal_${telegramId}`),
+      styledButton('➕ Balans qoʻshish', `adm_uaddbal_${telegramId}`, 'success'),
+      styledButton('➖ Balans ayirish', `adm_usubbal_${telegramId}`, 'danger'),
     ],
   ];
   rows.push([
     isBanned
-      ? Markup.button.callback('✅ Ban olib tashlash', `adm_uunban_${telegramId}`)
-      : Markup.button.callback('🚫 Ban qilish', `adm_uban_${telegramId}`),
+      ? styledButton('✅ Ban olib tashlash', `adm_uunban_${telegramId}`, 'success')
+      : styledButton('🚫 Ban qilish', `adm_uban_${telegramId}`, 'danger'),
   ]);
   rows.push([Markup.button.callback('🔙 Roʻyxatga qaytish', 'adm_balances')]);
   return Markup.inlineKeyboard(rows);
@@ -138,7 +148,7 @@ function userDetailKeyboard(telegramId, isBanned) {
 
 function balancesResetConfirmKeyboard() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Ha, hammasini 0 qilish', 'adm_balances_reset_do')],
+    [styledButton('✅ Ha, hammasini 0 qilish', 'adm_balances_reset_do', 'danger')],
     [Markup.button.callback('❌ Bekor qilish', 'adm_balances')],
   ]);
 }
@@ -153,14 +163,14 @@ function backToMain() {
 
 function confirmBuyKeyboard(countryCode) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Tasdiqlash', `buyconfirm_${countryCode}`)],
-    [Markup.button.callback('❌ Bekor qilish', 'back_main')],
+    [styledButton('✅ Tasdiqlash', `buyconfirm_${countryCode}`, 'success')],
+    [styledButton('❌ Bekor qilish', 'back_main', 'danger')],
   ]);
 }
 
 function cancelActivationKeyboard(activationId) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('🚫 Bekor qilish', `cancel_act_${activationId}`)],
+    [styledButton('🚫 Bekor qilish', `cancel_act_${activationId}`, 'danger')],
   ]);
 }
 
@@ -179,7 +189,7 @@ function catalogMenuKeyboard() {
 // customItems: [{ code, name }] — faqat admin qo'shgan (custom) elementlar
 function catalogDeleteKeyboard(customItems, deletePrefix) {
   const rows = customItems.map(item => [
-    Markup.button.callback(`🗑 ${item.name}`, `${deletePrefix}_${item.code}`),
+    styledButton(`🗑 ${item.name}`, `${deletePrefix}_${item.code}`, 'danger'),
   ]);
   rows.push([Markup.button.callback('🔙 Orqaga', 'adm_catalog')]);
   return Markup.inlineKeyboard(rows);
@@ -195,7 +205,7 @@ function numbersAdminMenuKeyboard(summaries) {
       `adm_num_country_${s.code}`
     ),
   ]);
-  rows.push([Markup.button.callback('➕ Yangi raqam qoʻshish', 'adm_num_add')]);
+  rows.push([styledButton('➕ Yangi raqam qoʻshish', 'adm_num_add', 'success')]);
   rows.push([Markup.button.callback('🔙 Admin panel', 'admin_panel')]);
   return Markup.inlineKeyboard(rows);
 }
@@ -226,14 +236,14 @@ function numberListKeyboard(countryCode, numbers) {
 function numberDetailKeyboard(id, status) {
   const rows = [];
   if (status !== 'assigned') {
-    rows.push([Markup.button.callback("🗑 O'chirish", `adm_num_del_${id}`)]);
+    rows.push([styledButton("🗑 O'chirish", `adm_num_del_${id}`, 'danger')]);
   }
   rows.push([Markup.button.callback('🔙 Orqaga', 'adm_numbers')]);
   return Markup.inlineKeyboard(rows);
 }
 
 function cancelLoginKeyboard() {
-  return Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor qilish', 'adm_num_login_cancel')]]);
+  return Markup.inlineKeyboard([[styledButton('❌ Bekor qilish', 'adm_num_login_cancel', 'danger')]]);
 }
 
 // Asosiy menyuni (matn + tugmalar) admin tomonidan o'rnatilgan rasm bilan yoki rasmsiz chiqaradi.
@@ -285,6 +295,7 @@ async function safeEdit(ctx, text, extra = {}) {
 
 module.exports = {
   mainMenu,
+  styledButton,
   countriesForSaleKeyboard,
   servicesKeyboard,
   countriesForServiceKeyboard,
