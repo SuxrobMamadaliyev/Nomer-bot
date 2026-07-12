@@ -65,4 +65,65 @@ function countryName(code) {
   return c ? c.name : `🌍 ${code}`;
 }
 
-module.exports = { COUNTRIES, findCountry, countryName };
+// ---- Admin panel orqali qo'shilgan davlatlar (Settings bazasida saqlanadi) ----
+// Bular COUNTRIES massiviga runtime'da qo'shiladi (mutatsiya orqali — shu sabab
+// bu faylni require qilgan boshqa modullar ham darhol yangi davlatni ko'radi,
+// qayta ishga tushirish shart emas). Bot qayta ishga tushganda esa DB'dan
+// loadCustomCountries() orqali tiklanadi.
+const { getSetting, setSetting } = require('./settings');
+
+async function loadCustomCountries() {
+  try {
+    const custom = (await getSetting('custom_countries')) || [];
+    for (const c of custom) {
+      if (!findCountry(c.code)) COUNTRIES.push({ ...c, custom: true });
+    }
+  } catch (e) {
+    console.error('Qoʻshimcha davlatlarni yuklashda xato:', e.message);
+  }
+}
+
+// { code, name, heroName } qabul qiladi. code — kichik harflarda, unikal bo'lishi kerak.
+async function addCountry({ code, name, heroName }) {
+  code = String(code || '').trim().toLowerCase();
+  name = String(name || '').trim();
+  heroName = String(heroName || '').trim();
+  if (!code || !name || !heroName) {
+    throw new Error("Barcha maydonlar toʻldirilishi shart: kod, nomi, HeroSMS nomi");
+  }
+  if (!/^[a-z0-9_-]{2,15}$/.test(code)) {
+    throw new Error("Kod noto'g'ri formatda (faqat lotin harflar/raqamlar, 2-15 belgi)");
+  }
+  if (findCountry(code)) {
+    throw new Error(`"${code}" kodli davlat allaqachon mavjud`);
+  }
+  const entry = { code, name, heroName, custom: true };
+  COUNTRIES.push(entry);
+  const custom = (await getSetting('custom_countries')) || [];
+  custom.push({ code, name, heroName });
+  await setSetting('custom_countries', custom);
+  return entry;
+}
+
+// Faqat admin panel orqali qo'shilgan (custom: true) davlatlarni o'chirish mumkin —
+// dastlabki (built-in) roʻyxat kodda qoladi.
+async function removeCountry(code) {
+  const idx = COUNTRIES.findIndex(c => c.code === code && c.custom);
+  if (idx === -1) {
+    throw new Error("Bu davlat topilmadi yoki asosiy (built-in) roʻyxatga tegishli — uni faqat kod orqali o'chirish mumkin");
+  }
+  const removed = COUNTRIES[idx];
+  COUNTRIES.splice(idx, 1);
+  const custom = (await getSetting('custom_countries')) || [];
+  await setSetting('custom_countries', custom.filter(c => c.code !== code));
+  return removed;
+}
+
+module.exports = {
+  COUNTRIES,
+  findCountry,
+  countryName,
+  addCountry,
+  removeCountry,
+  loadCustomCountries,
+};
