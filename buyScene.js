@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const { User, Activation, NumberAccount } = require('./models');
-const { getSetting, getNumberPrice, calcPriceUZS } = require('./settings');
+const { getSetting, setSetting, getNumberPrice, calcPriceUZS } = require('./settings');
 const { COUNTRIES, findCountry, countryName } = require('./countries');
 const heroSms = require('./heroSms');
 const {
@@ -82,6 +82,59 @@ const POPULAR_SERVICES = [
   { code: 'ya', label: 'Yandex' },
   { code: 'tt', label: 'TikTok' },
 ];
+
+// ---- Admin panel orqali qo'shilgan xizmatlar (Settings bazasida saqlanadi) ----
+// POPULAR_SERVICES massiviga runtime'da mutatsiya orqali qo'shiladi, shu sabab
+// boshqa modullarga qayta yuklanmasdan darhol ko'rinadi. Bot qayta ishga
+// tushganda DB'dan loadCustomServices() orqali tiklanadi.
+async function loadCustomServices() {
+  try {
+    const custom = (await getSetting('custom_services')) || [];
+    for (const s of custom) {
+      if (!POPULAR_SERVICES.find(x => x.code === s.code)) {
+        POPULAR_SERVICES.push({ ...s, custom: true });
+      }
+    }
+  } catch (e) {
+    console.error('Qoʻshimcha xizmatlarni yuklashda xato:', e.message);
+  }
+}
+
+// { code, label } qabul qiladi. code — kichik harflarda, unikal bo'lishi kerak.
+async function addService({ code, label }) {
+  code = String(code || '').trim().toLowerCase();
+  label = String(label || '').trim();
+  if (!code || !label) {
+    throw new Error('Kod va nomi toʻldirilishi shart');
+  }
+  if (!/^[a-z0-9_-]{2,15}$/.test(code)) {
+    throw new Error("Kod noto'g'ri formatda (faqat lotin harflar/raqamlar, 2-15 belgi)");
+  }
+  if (POPULAR_SERVICES.find(s => s.code === code)) {
+    throw new Error(`"${code}" kodli xizmat allaqachon mavjud`);
+  }
+  const entry = { code, label, custom: true };
+  POPULAR_SERVICES.push(entry);
+  const custom = (await getSetting('custom_services')) || [];
+  custom.push({ code, label });
+  await setSetting('custom_services', custom);
+  heroPricesCache = null; // yangi xizmat narxlari keyingi so'rovda hisobga olinsin
+  return entry;
+}
+
+// Faqat admin panel orqali qo'shilgan (custom: true) xizmatlarni o'chirish mumkin.
+async function removeService(code) {
+  const idx = POPULAR_SERVICES.findIndex(s => s.code === code && s.custom);
+  if (idx === -1) {
+    throw new Error('Bu xizmat topilmadi yoki asosiy (built-in) roʻyxatga tegishli');
+  }
+  const removed = POPULAR_SERVICES[idx];
+  POPULAR_SERVICES.splice(idx, 1);
+  const custom = (await getSetting('custom_services')) || [];
+  await setSetting('custom_services', custom.filter(s => s.code !== code));
+  heroPricesCache = null;
+  return removed;
+}
 
 let heroPricesCache = null; // { [countryCode]: { service, label, cost, count } } — eng arzoni
 let heroPricesCacheAt = 0;
@@ -568,4 +621,7 @@ module.exports = {
   handleIncomingCode,
   startExpiryWatchdog,
   POPULAR_SERVICES,
+  addService,
+  removeService,
+  loadCustomServices,
 };
