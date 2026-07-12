@@ -19,6 +19,41 @@ const COUNTRIES = [
   { code: 'tr', name: '🇹🇷 Turkiya', heroName: 'Turkey' },
   { code: 'in', name: '🇮🇳 Hindiston', heroName: 'India' },
   { code: 'cn', name: '🇨🇳 Xitoy', heroName: 'China' },
+
+  // --- Qo'shimcha davlatlar (kengaytirilgan roʻyxat) ---
+  // MUHIM: heroName qiymatlari HeroSMS'ning getCountries javobidagi "eng" nomiga
+  // mos kelishi kerak. Bu yerdagi nomlar SMS-Activate protokolida odatda
+  // ishlatiladigan standart inglizcha nomlar asosida tanlangan, lekin internetga
+  // ulanmasdan 100% kafolatlab bo'lmaydi. Admin panelda "🦸 HeroSMS tekshiruv"
+  // tugmasi orqali har bir nomni haqiqiy API bilan solishtirib, ❌ chiqqanlarini
+  // shu faylda tuzatib qo'ying.
+  { code: 'tj', name: '🇹🇯 Tojikiston', heroName: 'Tajikistan' },
+  { code: 'az', name: '🇦🇿 Ozarbayjon', heroName: 'Azerbaijan' },
+  { code: 'ge', name: '🇬🇪 Gruziya', heroName: 'Georgia' },
+  { code: 'am', name: '🇦🇲 Armaniston', heroName: 'Armenia' },
+  { code: 'by', name: '🇧🇾 Belarus', heroName: 'Belarus' },
+  { code: 'md', name: '🇲🇩 Moldova', heroName: 'Moldova' },
+  { code: 'pl', name: '🇵🇱 Polsha', heroName: 'Poland' },
+  { code: 'de', name: '🇩🇪 Germaniya', heroName: 'Germany' },
+  { code: 'fr', name: '🇫🇷 Fransiya', heroName: 'France' },
+  { code: 'it', name: '🇮🇹 Italiya', heroName: 'Italy' },
+  { code: 'es', name: '🇪🇸 Ispaniya', heroName: 'Spain' },
+  { code: 'nl', name: '🇳🇱 Niderlandiya', heroName: 'Netherlands' },
+  { code: 'ca', name: '🇨🇦 Kanada', heroName: 'Canada' },
+  { code: 'sa', name: '🇸🇦 Saudiya Arabistoni', heroName: 'Saudi Arabia' },
+  { code: 'ae', name: '🇦🇪 BAA', heroName: 'UAE' },
+  { code: 'eg', name: '🇪🇬 Misr', heroName: 'Egypt' },
+  { code: 'my', name: '🇲🇾 Malayziya', heroName: 'Malaysia' },
+  { code: 'th', name: '🇹🇭 Tailand', heroName: 'Thailand' },
+  { code: 'pk', name: '🇵🇰 Pokiston', heroName: 'Pakistan' },
+  { code: 'bd', name: '🇧🇩 Bangladesh', heroName: 'Bangladesh' },
+  { code: 'ng', name: '🇳🇬 Nigeriya', heroName: 'Nigeria' },
+  { code: 'br', name: '🇧🇷 Braziliya', heroName: 'Brazil' },
+  { code: 'mx', name: '🇲🇽 Meksika', heroName: 'Mexico' },
+  { code: 'vn', name: '🇻🇳 Vyetnam', heroName: 'Vietnam' },
+  { code: 'il', name: '🇮🇱 Isroil', heroName: 'Israel' },
+  { code: 'kr', name: '🇰🇷 Janubiy Koreya', heroName: 'South Korea' },
+  { code: 'jp', name: '🇯🇵 Yaponiya', heroName: 'Japan' },
 ];
 
 function findCountry(code) {
