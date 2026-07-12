@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const { getSetting } = require('./settings');
 const { isAdmin } = require('./admin');
+const { styledButton } = require('./keyboards');
 
 // Botdan foydalanishdan oldin barcha majburiy kanallarga obuna bo'lishni tekshiradi.
 // Admin panelda cheksiz miqdorda kanal qo'shish mumkin.
@@ -31,7 +32,7 @@ async function requireChannelSub(ctx, next) {
     const link = channel.startsWith('@') ? `https://t.me/${channel.slice(1)}` : channel;
     return [Markup.button.url(`📢 ${channel}`, link)];
   });
-  buttons.push([Markup.button.callback('✅ Tekshirish', 'check_sub')]);
+  buttons.push([styledButton('✅ Tekshirish', 'check_sub', 'success')]);
 
   const text =
     `🔒 Botdan foydalanish uchun quyidagi kanal(lar)ga aʼzo boʻling:\n\n` +
