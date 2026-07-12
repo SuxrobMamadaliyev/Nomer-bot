@@ -53,6 +53,7 @@ function adminPanelKeyboard() {
       Markup.button.callback('💎 TON kursi', 'adm_tonrate'),
     ],
     [Markup.button.callback('🔢 Raqamlar bazasi', 'adm_numbers')],
+    [Markup.button.callback('🌍➕ Davlat/Xizmat qoʻshish', 'adm_catalog')],
     [Markup.button.callback('🦸 HeroSMS tekshiruv', 'adm_hero_check')],
     [
       Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus'),
@@ -132,7 +133,28 @@ function cancelActivationKeyboard(activationId) {
   ]);
 }
 
-// ---- Admin: Raqamlar bazasi ----
+// ---- Admin: Davlat/Xizmat katalogi (dinamik qo'shish) ----
+
+function catalogMenuKeyboard() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('➕ Yangi davlat qoʻshish', 'adm_cat_addcountry')],
+    [Markup.button.callback('➕ Yangi xizmat qoʻshish', 'adm_cat_addservice')],
+    [Markup.button.callback('🗑 Davlatni oʻchirish', 'adm_cat_delcountry')],
+    [Markup.button.callback('🗑 Xizmatni oʻchirish', 'adm_cat_delservice')],
+    [Markup.button.callback('🔙 Admin panel', 'admin_panel')],
+  ]);
+}
+
+// customItems: [{ code, name }] — faqat admin qo'shgan (custom) elementlar
+function catalogDeleteKeyboard(customItems, deletePrefix) {
+  const rows = customItems.map(item => [
+    Markup.button.callback(`🗑 ${item.name}`, `${deletePrefix}_${item.code}`),
+  ]);
+  rows.push([Markup.button.callback('🔙 Orqaga', 'adm_catalog')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+
 
 // Har bir davlat uchun mavjud/band/ishlatilgan sonini ko'rsatadigan menyu
 function numbersAdminMenuKeyboard(summaries) {
@@ -234,6 +256,8 @@ module.exports = {
   mainMenu,
   countriesForSaleKeyboard,
   adminPanelKeyboard,
+  catalogMenuKeyboard,
+  catalogDeleteKeyboard,
   balancesMenuKeyboard,
   balancesResetConfirmKeyboard,
   userDetailKeyboard,
