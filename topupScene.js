@@ -1,7 +1,7 @@
 const { Scenes, Markup } = require('telegraf');
 const { User } = require('./models');
 const { getAllSettings } = require('./settings');
-const { backToMain, safeEdit } = require('./keyboards');
+const { backToMain, safeEdit, styledButton } = require('./keyboards');
 const { ADMIN_IDS } = require('./admin');
 const tonPayment = require('./tonPayment');
 
@@ -10,21 +10,21 @@ const waiting = {};
 
 function methodKeyboard(tonEnabled) {
   const rows = [
-    [Markup.button.callback('⭐ Telegram Stars (avtomatik)', 'topup_method_stars')],
+    [styledButton('⭐ Telegram Stars (avtomatik)', 'topup_method_stars', 'primary')],
   ];
   if (tonEnabled) {
-    rows.push([Markup.button.callback('💎 TON (avtomatik)', 'topup_method_ton')]);
+    rows.push([styledButton('💎 TON (avtomatik)', 'topup_method_ton', 'primary')]);
   }
   rows.push([Markup.button.callback('💳 Karta orqali (chek bilan)', 'topup_method_card')]);
-  rows.push([Markup.button.callback('❌ Bekor', 'back_main')]);
+  rows.push([styledButton('❌ Bekor', 'back_main', 'danger')]);
   return Markup.inlineKeyboard(rows);
 }
 
 function tonPayKeyboard(link, invoiceId) {
   return Markup.inlineKeyboard([
     [Markup.button.url('💎 Tonkeeper orqali toʻlash', link)],
-    [Markup.button.callback('✅ Toʻlovni tekshirish', `ton_check_${invoiceId}`)],
-    [Markup.button.callback('❌ Bekor qilish', 'back_main')],
+    [styledButton('✅ Toʻlovni tekshirish', `ton_check_${invoiceId}`, 'success')],
+    [styledButton('❌ Bekor qilish', 'back_main', 'danger')],
   ]);
 }
 
@@ -79,7 +79,7 @@ function topupScene() {
         `✅ Toʻlov avtomatik aniqlanadi, hech qanday chek yuborish shart emas.\n` +
         `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
         `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'topup', 'danger')]]) }
       );
     }
 
@@ -92,7 +92,7 @@ function topupScene() {
         `ℹ️ To'ldirishda <b>${s.topup_fee_percent}%</b> xizmat haqi ushlab qolinadi.\n` +
         `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
         `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'topup', 'danger')]]) }
       );
     }
 
@@ -106,7 +106,7 @@ function topupScene() {
         `✅ Bu usulda komissiya olinmaydi, balans darhol avtomatik to'ldiriladi.\n` +
         `ℹ️ Minimal depozit: <b>${s.min_balance_uzs.toLocaleString()} so'm</b>\n\n` +
         `To'ldirish uchun summani kiriting (so'mda), masalan: <code>50000</code>`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'topup')]]) }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[styledButton('❌ Bekor', 'topup', 'danger')]]) }
       );
     }
 
@@ -239,8 +239,8 @@ function topupScene() {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
             [
-              Markup.button.callback('✅ Tasdiqlash', `approve_topup_${ctx.from.id}_${credited}_${fee}`),
-              Markup.button.callback('❌ Rad etish', `reject_topup_${ctx.from.id}`),
+              styledButton('✅ Tasdiqlash', `approve_topup_${ctx.from.id}_${credited}_${fee}`, 'success'),
+              styledButton('❌ Rad etish', `reject_topup_${ctx.from.id}`, 'danger'),
             ],
           ]),
         });
