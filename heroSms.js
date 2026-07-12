@@ -92,6 +92,19 @@ async function resolveCountryId(engName) {
   return null;
 }
 
+// ---- Xizmatlar roʻyxati (kod tekshiruvi uchun, admin diagnostikasida ishlatiladi) ----
+// Qaytaradi: [{ code, name }, ...] (topilmasa yoki xato bo'lsa — bo'sh array)
+async function getServicesList() {
+  const data = await request({ action: 'getServicesList' });
+  if (typeof data === 'string') {
+    throwIfError(data);
+    return [];
+  }
+  if (Array.isArray(data?.services)) return data.services;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
 // ---- Narxlar (bitta so'rovda barcha davlatlar uchun) ----
 // Qaytadi: { [countryId]: costUSD } faqat mavjud (count>0) bo'lganlar
 async function getPricesForService(service = SERVICE) {
@@ -183,6 +196,7 @@ module.exports = {
   SERVICE,
   getBalance,
   getCountries,
+  getServicesList,
   resolveCountryId,
   getPricesForService,
   getNumber,
