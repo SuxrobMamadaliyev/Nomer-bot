@@ -16,17 +16,17 @@ function mainMenu(isAdmin = false) {
   const rows = [
     [styledButton('🔥 Arzon nomerlar', 'cheap_numbers', 'success')],
     [
-      styledButton('📱 Raqam olish', 'buy_number', 'primary'),
-      Markup.button.callback('👤 Kabinet', 'cabinet'),
+      styledButton('📱 Raqam olish', 'buy_number', 'success'),
+      styledButton('👤 Kabinet', 'cabinet', 'success'),
     ],
     [
       styledButton("👛 Balans to'ldirish", 'topup', 'success'),
-      Markup.button.callback('❓ Yordam', 'help'),
+      styledButton('❓ Yordam', 'help', 'success'),
     ],
-    [Markup.button.callback('🎁 Referal', 'referral_info')],
+    [styledButton('🎁 Referal', 'referral_info', 'success')],
   ];
   if (isAdmin) {
-    rows.push([Markup.button.callback('⚙️ Admin panel', 'admin_panel')]);
+    rows.push([styledButton('⚙️ Admin panel', 'admin_panel', 'success')]);
   }
   return Markup.inlineKeyboard(rows);
 }
