@@ -53,6 +53,7 @@ function adminPanelKeyboard() {
       Markup.button.callback('💎 TON kursi', 'adm_tonrate'),
     ],
     [Markup.button.callback('🔢 Raqamlar bazasi', 'adm_numbers')],
+    [Markup.button.callback('🦸 HeroSMS tekshiruv', 'adm_hero_check')],
     [
       Markup.button.callback('🎁 Referal bonusi', 'adm_refbonus'),
       Markup.button.callback('💵 Minimal depozit', 'adm_mindeposit'),
