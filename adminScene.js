@@ -2,6 +2,8 @@ const { Scenes, Markup } = require('telegraf');
 const { getSetting, setSetting, getAllSettings, getNumberPrice, setNumberPrice } = require('./settings');
 const {
   adminPanelKeyboard,
+  catalogMenuKeyboard,
+  catalogDeleteKeyboard,
   balancesMenuKeyboard,
   balancesResetConfirmKeyboard,
   backToAdmin,
@@ -14,10 +16,10 @@ const {
   userDetailKeyboard,
 } = require('./keyboards');
 const { User, Activation, NumberAccount } = require('./models');
-const { countryName, COUNTRIES } = require('./countries');
+const { countryName, COUNTRIES, addCountry, removeCountry } = require('./countries');
 const userbot = require('./userbot');
 const heroSms = require('./heroSms');
-const { handleIncomingCode, POPULAR_SERVICES } = require('./buyScene');
+const { handleIncomingCode, POPULAR_SERVICES, addService, removeService } = require('./buyScene');
 
 // Admin panel asosiy ko'rinish
 async function showAdminPanel(ctx) {
@@ -196,6 +198,18 @@ async function showNumbersAdminMenu(ctx) {
   await safeEdit(ctx, text, { parse_mode: 'HTML', ...numbersAdminMenuKeyboard(summaries) });
 }
 
+// Davlat/xizmat qo'shish-o'chirish menyusi
+async function showCatalogMenu(ctx) {
+  const customCountries = COUNTRIES.filter(c => c.custom);
+  const customServices = POPULAR_SERVICES.filter(s => s.custom);
+  const text =
+    `🌍➕ <b>Davlat/Xizmat qoʻshish</b>\n${DIVIDER_CHAR}\n` +
+    `📦 Jami davlatlar: <b>${COUNTRIES.length}</b> (shundan admin qoʻshgan: ${customCountries.length})\n` +
+    `📲 Jami xizmatlar: <b>${POPULAR_SERVICES.length}</b> (shundan admin qoʻshgan: ${customServices.length})\n\n` +
+    `❗️ Yangi qo'shgan davlat/xizmatni HeroSMS haqiqatda qoʻllab-quvvatlashini "🦸 HeroSMS tekshiruv" orqali tekshiring.`;
+  return safeEdit(ctx, text, { parse_mode: 'HTML', ...catalogMenuKeyboard() });
+}
+
 // COUNTRIES va POPULAR_SERVICES ro'yxatidagi har bir "heroName"/"code" ni
 // haqiqiy HeroSMS API bilan solishtiradi va ✅/❌ shaklida hisobot chiqaradi.
 // Bu — kod fayllarida qo'lda kiritilgan nomlarning aslida to'g'ri ekanini
@@ -286,6 +300,87 @@ function adminScene() {
 
     if (data === 'adm_hero_check') {
       return showHeroDiagnostics(ctx);
+    }
+
+    // ---- DAVLAT/XIZMAT KATALOGI ----
+
+    if (data === 'adm_catalog') {
+      await ctx.answerCbQuery();
+      return showCatalogMenu(ctx);
+    }
+
+    if (data === 'adm_cat_addcountry') {
+      await ctx.answerCbQuery();
+      waiting[ctx.from.id] = {
+        key: '_add_country',
+        label:
+          "🌍 Yangi davlat qoʻshish.\nFormat: <code>kod|Nomi (emoji bilan)|HeroSMS nomi</code>\n" +
+          "Masalan: <code>id|🇮🇩 Indoneziya|Indonesia</code>\n\n" +
+          "❗️ \"HeroSMS nomi\" — HeroSMS APIsidagi davlat nomi (inglizcha) bilan aynan bir xil bo'lishi kerak, aks holda bu davlat uchun narx chiqmaydi.",
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_catalog')]]) }
+      );
+    }
+
+    if (data === 'adm_cat_addservice') {
+      await ctx.answerCbQuery();
+      waiting[ctx.from.id] = {
+        key: '_add_service',
+        label:
+          "📲 Yangi xizmat qoʻshish.\nFormat: <code>kod|Nomi</code>\n" +
+          "Masalan: <code>tn|Tinder</code>\n\n" +
+          "❗️ \"Kod\" — HeroSMS APIsidagi xizmat kodi bilan aynan bir xil bo'lishi kerak, aks holda bu xizmat uchun narx chiqmaydi.",
+      };
+      return safeEdit(ctx,
+        `✏️ ${waiting[ctx.from.id].label}`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor', 'adm_catalog')]]) }
+      );
+    }
+
+    if (data === 'adm_cat_delcountry') {
+      await ctx.answerCbQuery();
+      const customCountries = COUNTRIES.filter(c => c.custom);
+      if (!customCountries.length) {
+        return safeEdit(ctx, "📭 Admin qoʻshgan davlat yoʻq (faqat built-in roʻyxat mavjud).",
+          { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Orqaga', 'adm_catalog')]]) });
+      }
+      return safeEdit(ctx, "🗑 Oʻchirish uchun davlatni tanlang:",
+        { parse_mode: 'HTML', ...catalogDeleteKeyboard(customCountries, 'adm_cat_delcountry_do') });
+    }
+
+    if (data.startsWith('adm_cat_delcountry_do_')) {
+      const code = data.replace('adm_cat_delcountry_do_', '');
+      try {
+        const removed = await removeCountry(code);
+        await ctx.answerCbQuery(`🗑 ${removed.name} oʻchirildi`);
+      } catch (e) {
+        await ctx.answerCbQuery('❌ ' + e.message, { show_alert: true });
+      }
+      return showCatalogMenu(ctx);
+    }
+
+    if (data === 'adm_cat_delservice') {
+      await ctx.answerCbQuery();
+      const customServices = POPULAR_SERVICES.filter(s => s.custom).map(s => ({ code: s.code, name: s.label }));
+      if (!customServices.length) {
+        return safeEdit(ctx, "📭 Admin qoʻshgan xizmat yoʻq (faqat built-in roʻyxat mavjud).",
+          { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Orqaga', 'adm_catalog')]]) });
+      }
+      return safeEdit(ctx, "🗑 Oʻchirish uchun xizmatni tanlang:",
+        { parse_mode: 'HTML', ...catalogDeleteKeyboard(customServices, 'adm_cat_delservice_do') });
+    }
+
+    if (data.startsWith('adm_cat_delservice_do_')) {
+      const code = data.replace('adm_cat_delservice_do_', '');
+      try {
+        const removed = await removeService(code);
+        await ctx.answerCbQuery(`🗑 ${removed.label} oʻchirildi`);
+      } catch (e) {
+        await ctx.answerCbQuery('❌ ' + e.message, { show_alert: true });
+      }
+      return showCatalogMenu(ctx);
     }
 
     // ---- RAQAMLAR BAZASI ----
@@ -889,6 +984,44 @@ function adminScene() {
       }
       await setNumberPrice(country, price);
       return ctx.reply(`✅ ${countryName(country)} narxi ${price.toLocaleString()} so'm qilib belgilandi.`, backToAdmin());
+    }
+
+    if (w.key === '_add_country') {
+      delete waiting[ctx.from.id];
+      const parts = ctx.message.text.trim().split('|').map(s => s.trim());
+      const [code, name, heroName] = parts;
+      try {
+        if (parts.length !== 3 || !code || !name || !heroName) {
+          throw new Error("Format xato! Namuna: id|🇮🇩 Indoneziya|Indonesia");
+        }
+        const entry = await addCountry({ code, name, heroName });
+        return ctx.reply(
+          `✅ Davlat qoʻshildi: ${entry.name} (${entry.code})\n\n` +
+          `🦸 Endi "HeroSMS tekshiruv" tugmasidan foydalanib, "${entry.heroName}" nomi HeroSMS'da mavjudligini tekshiring.`,
+          { parse_mode: 'HTML', ...backToAdmin() }
+        );
+      } catch (e) {
+        return ctx.reply('❌ ' + e.message, backToAdmin());
+      }
+    }
+
+    if (w.key === '_add_service') {
+      delete waiting[ctx.from.id];
+      const parts = ctx.message.text.trim().split('|').map(s => s.trim());
+      const [code, label] = parts;
+      try {
+        if (parts.length !== 2 || !code || !label) {
+          throw new Error("Format xato! Namuna: tn|Tinder");
+        }
+        const entry = await addService({ code, label });
+        return ctx.reply(
+          `✅ Xizmat qoʻshildi: ${entry.label} (${entry.code})\n\n` +
+          `🦸 Endi "HeroSMS tekshiruv" tugmasidan foydalanib, "${entry.code}" kodi HeroSMS'da mavjudligini tekshiring.`,
+          { parse_mode: 'HTML', ...backToAdmin() }
+        );
+      } catch (e) {
+        return ctx.reply('❌ ' + e.message, backToAdmin());
+      }
     }
 
     const val = ctx.message.text.trim();
