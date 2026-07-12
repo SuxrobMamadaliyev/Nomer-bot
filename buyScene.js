@@ -95,8 +95,11 @@ async function getHeroIdToCodeMap() {
   return map;
 }
 
-// countryCode -> { service, label, cost, count } — barcha POPULAR_SERVICES orasidan
-// har bir davlat uchun eng arzon VA mavjud bo'lgan xizmatni tanlaydi.
+// countryCode -> { service, label, cost, count } — POPULAR_SERVICES tartibi bo'yicha
+// birinchi MAVJUD bo'lgan xizmat tanlanadi (Telegram ustuvor). Bu "eng arzonini tanlash"
+// emas — chunki ba'zi kam mashhur xizmatlar tasodifan juda arzon (past sifatli) bo'lib,
+// narxni sun'iy pastga tushirib yuborardi. Boshqa xizmatlar faqat Telegram mavjud
+// bo'lmaganda ishga tushadi (davlatni butunlay ro'yxatdan chiqarib yubormaslik uchun).
 async function getHeroOffersByCode() {
   if (heroPricesCache && Date.now() - heroPricesCacheAt < HERO_PRICE_TTL) {
     return heroPricesCache;
@@ -115,15 +118,15 @@ async function getHeroOffersByCode() {
     );
 
     const result = {};
+    // POPULAR_SERVICES tartibida — Telegram birinchi bo'lgani uchun mavjud bo'lsa
+    // shu tanlanadi va keyingi xizmatlar shu davlat uchun uni bosib o'tmaydi.
     for (const { svc, prices } of perService) {
       for (const countryId of Object.keys(prices)) {
         const code = idToCode[countryId];
         if (!code) continue; // roʻyxatimizda yo'q davlat — e'tiborsiz qoldiramiz
+        if (result[code]) continue; // bu davlat uchun ustuvor xizmat allaqachon topilgan
         const entry = prices[countryId];
-        const current = result[code];
-        if (!current || entry.cost < current.cost) {
-          result[code] = { service: svc.code, label: svc.label, cost: entry.cost, count: entry.count };
-        }
+        result[code] = { service: svc.code, label: svc.label, cost: entry.cost, count: entry.count };
       }
     }
     heroPricesCache = result;
@@ -147,8 +150,15 @@ async function heroCountryIdFor(countryCode) {
 }
 
 // Har bir davlat uchun umumiy taklifni hisoblaydi: admin bazasi + HeroSMS.
-// Narx: admin qo'lda belgilagan number_prices ustuvor, aks holda HeroSMS narxidan
-// (markup bilan) hisoblanadi.
+//
+// MUHIM narxlash qoidasi:
+//   - Admin bazasidagi (userbot) raqamlar — admin panelda qo'lda belgilangan narxda sotiladi.
+//   - HeroSMS orqali sotib olinadigan raqamlar — HAR DOIM HeroSMS'ning joriy narxi ustiga
+//     admin foydasi (markup_percent) qo'shilib hisoblanadi (settings.calcPriceUZS). Bu yerda
+//     hech qachon qo'lda belgilangan narx ishlatilmaydi — chunki HeroSMS narxi kun/soat
+//     davomida o'zgarib turishi mumkin, shu sabab har doim joriy narxdan hisoblanadi.
+//   - Ro'yxatda ko'rsatiladigan narx — qaysi manba avval ishlatilishini aks ettiradi:
+//     admin bazasida (va narxi sozlangan) raqam bo'lsa o'sha narx, aks holda HeroSMS narxi.
 //
 // MUHIM: admin panel orqali istalgan davlat kodi bilan raqam qo'shish mumkin (COUNTRIES
 // roʻyxati faqat HeroSMS bilan moslashtirish uchun "tavsiya etilgan" roʻyxat, cheklov emas).
@@ -172,19 +182,23 @@ async function getCountryOffers() {
   const offers = [];
   for (const code of allCodes) {
     const adminCount = adminAvailable[code] || 0;
+    const adminPrice = manualPrices[code] || 0;
+    const adminUsable = adminCount > 0 && adminPrice > 0;
+
     const hero = heroOffers[code];
     const heroCount = hero ? hero.count : 0;
-    const totalAvailable = adminCount + heroCount;
-    if (!totalAvailable) continue;
+    const heroPrice = hero ? await calcPriceUZS(hero.cost) : 0;
+    const heroUsable = heroCount > 0 && heroPrice > 0;
 
-    let price = manualPrices[code] || 0;
-    if (!price && hero) price = await calcPriceUZS(hero.cost);
-    if (!price) continue; // narx sozlanmagan bo'lsa — ko'rsatilmaydi
+    if (!adminUsable && !heroUsable) continue;
+
+    // Ustuvorlik admin bazasiga beriladi (xarid oqimi ham shu tartibda ishlaydi)
+    const price = adminUsable ? adminPrice : heroPrice;
 
     offers.push({
       code,
       name: countryName(code),
-      available: totalAvailable,
+      available: adminCount + heroCount,
       price,
     });
   }
@@ -215,22 +229,29 @@ async function showCountries(ctx, { title = '🌍 <b>Davlatni tanlang</b>' } = {
   }
 }
 
-// Bitta davlat uchun narx va mavjudlikni hisoblaydi (admin + HeroSMS birlashtirilgan)
+// Bitta davlat uchun narx va mavjudlikni hisoblaydi (admin + HeroSMS birlashtirilgan).
+// preferredSource — xarid vaqtida qaysi manbadan olinishi rejalashtirilgani (admin
+// bazasi mavjud va narxi sozlangan bo'lsa "userbot", aks holda "herosms").
 async function getOfferFor(countryCode) {
   const adminCount = await NumberAccount.countDocuments({ country: countryCode, status: 'available' });
+  const adminPrice = await getNumberPrice(countryCode);
+  const adminUsable = adminCount > 0 && adminPrice > 0;
+
   const heroOffers = await getHeroOffersByCode();
   const hero = heroOffers[countryCode];
   const heroCount = hero ? hero.count : 0;
+  const heroPrice = hero ? await calcPriceUZS(hero.cost) : 0;
+  const heroUsable = heroCount > 0 && heroPrice > 0;
 
-  const manualPrice = await getNumberPrice(countryCode);
-  let price = manualPrice;
-  if (!price && hero) price = await calcPriceUZS(hero.cost);
+  const preferredSource = adminUsable ? 'userbot' : (heroUsable ? 'herosms' : null);
+  const price = adminUsable ? adminPrice : (heroUsable ? heroPrice : 0);
 
   return {
     adminCount,
     heroCount,
     total: adminCount + heroCount,
     price,
+    preferredSource,
     heroService: hero ? hero.service : null,
   };
 }
@@ -272,34 +293,53 @@ async function handleConfirm(ctx, countryCode) {
   await ctx.answerCbQuery('⏳ Raqam biriktirilmoqda...');
 
   const cnt = findCountry(countryCode) || { code: countryCode, name: countryName(countryCode) };
-  const { price, heroService } = await getOfferFor(countryCode);
+  const offer = await getOfferFor(countryCode);
   const user = await User.findOne({ telegramId: ctx.from.id });
 
-  if (!price) {
+  if (!offer.price || !offer.preferredSource) {
     return safeEdit(ctx, '⚠️ Narx sozlanmagan. Admin bilan bogʻlaning.', { parse_mode: 'HTML', ...backToMain() });
   }
-  if ((user?.balance || 0) < price) {
+  if ((user?.balance || 0) < offer.price) {
     return safeEdit(ctx, '❌ Balans yetarli emas!', { parse_mode: 'HTML', ...backToMain() });
   }
 
-  // 1-urinish: admin bazasidan ("userbot" manba). Atomik: faqat "available"
-  // bo'lgan bitta raqamni "assigned" ga o'tkazadi — shu tufayli ikkita
-  // foydalanuvchi bir xil raqamni bir vaqtda ololmaydi.
-  const numberDoc = await NumberAccount.findOneAndUpdate(
-    { country: countryCode, status: 'available' },
-    { status: 'assigned', assignedTo: ctx.from.id, assignedAt: new Date() },
-    { new: true }
-  );
+  let phoneNumber, source, heroActivationId, numberAccountId, heroServiceLabel, finalPrice;
 
-  let phoneNumber, source, heroActivationId, numberAccountId, heroServiceLabel;
+  if (offer.preferredSource === 'userbot') {
+    // Admin bazasidan olamiz — narx admin panelda qo'lda belgilangan narx.
+    // Atomik: faqat "available" bo'lgan bitta raqamni "assigned" ga o'tkazadi,
+    // shu tufayli ikkita foydalanuvchi bir xil raqamni bir vaqtda ololmaydi.
+    const numberDoc = await NumberAccount.findOneAndUpdate(
+      { country: countryCode, status: 'available' },
+      { status: 'assigned', assignedTo: ctx.from.id, assignedAt: new Date() },
+      { new: true }
+    );
+    if (numberDoc) {
+      phoneNumber = numberDoc.phoneNumber;
+      source = 'userbot';
+      numberAccountId = numberDoc._id;
+      finalPrice = offer.price; // admin qo'lda belgilagan narx
+    }
+    // Agar numberDoc topilmasa (poyga holati — boshqa xaridor oldin oldi) — pastda HeroSMS'ga o'tamiz
+  }
 
-  if (numberDoc) {
-    phoneNumber = numberDoc.phoneNumber;
-    source = 'userbot';
-    numberAccountId = numberDoc._id;
-  } else {
-    // 2-urinish: admin bazasida yo'q — HeroSMS API orqali sotib olamiz.
-    // Eng arzon topilgan xizmat (Telegram/WhatsApp/Instagram/...) bo'yicha so'raymiz.
+  if (!source) {
+    // HeroSMS orqali sotib olamiz. Narxni HAR DOIM shu zahotdagi joriy HeroSMS
+    // narxidan (cost + admin foydasi) qayta hisoblaymiz — hech qachon eski/qo'lda
+    // belgilangan narx ishlatilmaydi, chunki HeroSMS narxi doim o'zgarib turadi.
+    const heroOffers = await getHeroOffersByCode();
+    const hero = heroOffers[countryCode];
+    if (!hero || !hero.count) {
+      return safeEdit(ctx,
+        `📭 Afsuski, bu oraliqda raqamlar tugab qoldi. Boshqa davlatni tanlang.`,
+        { parse_mode: 'HTML', ...backToMain() }
+      );
+    }
+    const heroPrice = await calcPriceUZS(hero.cost);
+    if (!heroPrice || (user?.balance || 0) < heroPrice) {
+      return safeEdit(ctx, '❌ Balans yetarli emas!', { parse_mode: 'HTML', ...backToMain() });
+    }
+
     const heroId = await heroCountryIdFor(countryCode);
     if (heroId == null) {
       return safeEdit(ctx,
@@ -307,13 +347,14 @@ async function handleConfirm(ctx, countryCode) {
         { parse_mode: 'HTML', ...backToMain() }
       );
     }
-    const svc = POPULAR_SERVICES.find(s => s.code === heroService) || POPULAR_SERVICES[0];
+    const svc = POPULAR_SERVICES.find(s => s.code === hero.service) || POPULAR_SERVICES[0];
     try {
       const bought = await heroSms.getNumber({ country: heroId, service: svc.code });
       phoneNumber = bought.phoneNumber;
       heroActivationId = bought.activationId;
       heroServiceLabel = svc.label;
       source = 'herosms';
+      finalPrice = heroPrice; // HeroSMS narxi + admin foydasi (shu zahotdagi joriy narx)
       heroSms.markReady(heroActivationId).catch(() => {}); // muhim emas, fonda
     } catch (e) {
       console.error(`HeroSMS'dan raqam olishda xato (${countryCode}):`, e.message);
@@ -323,6 +364,8 @@ async function handleConfirm(ctx, countryCode) {
       );
     }
   }
+
+  const price = finalPrice;
 
   // Balansdan ayirish
   await User.updateOne(
