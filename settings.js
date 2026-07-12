@@ -17,6 +17,8 @@ const DEFAULTS = {
   number_wait_minutes: 5,      // Raqam berilgach kod necha daqiqa kutiladi (shu vaqtda kod kelmasa pul qaytariladi)
   ton_wallet_address: '',      // TON hamyon manzili (avtomatik TON to'lovlarini shu manzil qabul qiladi)
   ton_to_uzs: 0,                // 1 TON = ? so'm (0 bo'lsa TON orqali toʻldirish oʻchirilgan hisoblanadi)
+  custom_countries: [],         // Admin panel orqali qo'shilgan davlatlar: [{ code, name, heroName }]
+  custom_services: [],          // Admin panel orqali qo'shilgan xizmatlar: [{ code, label }]
 };
 
 async function getSetting(key) {
