@@ -64,12 +64,23 @@ async function postProofToChannel(ctx, { countryName: cName, phoneNumber }) {
 // ---- HeroSMS narxlarini keshlab olish (bir necha mashhur xizmat bo'yicha) ----
 // Faqat Telegram emas — O'zbekistonda ommaviy ishlatiladigan servislar bo'yicha ham
 // tekshiramiz va har bir davlat uchun eng arzon (va mavjud) variantni tanlaymiz.
+// MUHIM: "code" qiymatlari HeroSMS/SMS-Activate protokolidagi xizmat kodlari
+// bilan mos kelishi kerak. Quyidagi kodlar ushbu protokolda odatda ishlatiladigan
+// standart qisqartmalar, lekin internetga ulanmasdan 100% kafolatlab bo'lmaydi.
+// Admin panelda "🦸 HeroSMS tekshiruv" tugmasi orqali har birini haqiqiy API
+// bilan solishtiring — ❌ chiqqan kodlarni shu yerda tuzating.
 const POPULAR_SERVICES = [
   { code: 'tg', label: 'Telegram' },
   { code: 'wa', label: 'WhatsApp' },
   { code: 'ig', label: 'Instagram' },
   { code: 'fb', label: 'Facebook' },
   { code: 'go', label: 'Google' },
+  { code: 'vk', label: 'VKontakte' },
+  { code: 'ok', label: 'Odnoklassniki' },
+  { code: 'ds', label: 'Discord' },
+  { code: 'tw', label: 'Twitter / X' },
+  { code: 'ya', label: 'Yandex' },
+  { code: 'tt', label: 'TikTok' },
 ];
 
 let heroPricesCache = null; // { [countryCode]: { service, label, cost, count } } — eng arzoni
@@ -556,4 +567,5 @@ module.exports = {
   handleCancelActivation,
   handleIncomingCode,
   startExpiryWatchdog,
+  POPULAR_SERVICES,
 };
