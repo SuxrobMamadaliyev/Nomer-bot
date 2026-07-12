@@ -34,6 +34,37 @@ function countriesForSaleKeyboard(offers) {
   return Markup.inlineKeyboard(rows);
 }
 
+// "📱 Raqam olish" bosilganda birinchi chiqadigan XIZMATLAR roʻyxati.
+// services: [{ code, label }]
+function servicesKeyboard(services) {
+  const buttons = services.map(s => Markup.button.callback(s.label, `buysvc_${s.code}`));
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+  rows.push([Markup.button.callback('🔙 Bosh menyu', 'back_main')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// Tanlangan xizmat uchun mavjud DAVLATLAR roʻyxati — har biri narxi bilan.
+// offers: [{ code, name, price, available }]
+function countriesForServiceKeyboard(serviceCode, offers) {
+  const rows = offers.map(o => [
+    Markup.button.callback(
+      `${o.name} — ${o.price.toLocaleString()} so'm (${o.available} ta)`,
+      `svccnt_${serviceCode}:${o.code}`
+    ),
+  ]);
+  rows.push([Markup.button.callback('🔙 Xizmatlar', 'buy_number')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// Xizmat + davlat tanlangandan keyingi tasdiqlash tugmasi
+function confirmBuyServiceKeyboard(serviceCode, countryCode) {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Tasdiqlash', `svcconfirm_${serviceCode}:${countryCode}`)],
+    [Markup.button.callback('❌ Bekor qilish', 'back_main')],
+  ]);
+}
+
 function adminPanelKeyboard() {
   return Markup.inlineKeyboard([
     [
@@ -255,6 +286,9 @@ async function safeEdit(ctx, text, extra = {}) {
 module.exports = {
   mainMenu,
   countriesForSaleKeyboard,
+  servicesKeyboard,
+  countriesForServiceKeyboard,
+  confirmBuyServiceKeyboard,
   adminPanelKeyboard,
   catalogMenuKeyboard,
   catalogDeleteKeyboard,
