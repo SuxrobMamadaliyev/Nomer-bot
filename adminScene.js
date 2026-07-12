@@ -14,10 +14,10 @@ const {
   userDetailKeyboard,
 } = require('./keyboards');
 const { User, Activation, NumberAccount } = require('./models');
-const { countryName } = require('./countries');
+const { countryName, COUNTRIES } = require('./countries');
 const userbot = require('./userbot');
 const heroSms = require('./heroSms');
-const { handleIncomingCode } = require('./buyScene');
+const { handleIncomingCode, POPULAR_SERVICES } = require('./buyScene');
 
 // Admin panel asosiy ko'rinish
 async function showAdminPanel(ctx) {
@@ -196,6 +196,54 @@ async function showNumbersAdminMenu(ctx) {
   await safeEdit(ctx, text, { parse_mode: 'HTML', ...numbersAdminMenuKeyboard(summaries) });
 }
 
+// COUNTRIES va POPULAR_SERVICES ro'yxatidagi har bir "heroName"/"code" ni
+// haqiqiy HeroSMS API bilan solishtiradi va ✅/❌ shaklida hisobot chiqaradi.
+// Bu — kod fayllarida qo'lda kiritilgan nomlarning aslida to'g'ri ekanini
+// tekshirish uchun (chunki API'ga ulanmasdan buni oldindan bilib bo'lmaydi).
+async function showHeroDiagnostics(ctx) {
+  await ctx.answerCbQuery('⏳ Tekshirilmoqda, biroz kuting...');
+
+  const lines = [];
+  lines.push('🌍 <b>Davlatlar (heroName tekshiruvi):</b>');
+  let countryErr = null;
+  for (const c of COUNTRIES) {
+    if (countryErr) break;
+    try {
+      const id = await heroSms.resolveCountryId(c.heroName);
+      lines.push(id != null
+        ? `✅ ${c.name} — id:${id}`
+        : `❌ ${c.name} — "${c.heroName}" topilmadi`);
+    } catch (e) {
+      countryErr = e.message;
+    }
+  }
+  if (countryErr) lines.push(`⚠️ Davlatlar roʻyxatini olishda xato: ${countryErr}`);
+
+  lines.push('');
+  lines.push('📲 <b>Xizmatlar (POPULAR_SERVICES tekshiruvi):</b>');
+  try {
+    const services = await heroSms.getServicesList();
+    if (services.length) {
+      const codes = new Set(
+        services.map(s => String(s.code ?? s.id ?? '').toLowerCase()).filter(Boolean)
+      );
+      for (const svc of POPULAR_SERVICES) {
+        lines.push(codes.has(svc.code.toLowerCase())
+          ? `✅ ${svc.label} — "${svc.code}"`
+          : `❌ ${svc.label} — "${svc.code}" topilmadi`);
+      }
+    } else {
+      lines.push('❔ HeroSMS xizmatlar roʻyxatini qaytarmadi (getServicesList qoʻllab-quvvatlanmasligi mumkin).');
+      lines.push('Buning oʻrniga: davlat tanlab, "Raqam olish" bosing — narx chiqsa, xizmat kodi ishlayapti demak.');
+    }
+  } catch (e) {
+    lines.push(`⚠️ Xizmatlar roʻyxatini olishda xato: ${e.message}`);
+  }
+
+  const text = lines.join('\n').slice(0, 4000);
+  await safeEdit(ctx, text, { parse_mode: 'HTML', ...backToAdmin() });
+}
+
 function adminScene() {
   const scene = new Scenes.BaseScene('admin');
 
@@ -234,6 +282,10 @@ function adminScene() {
         delete pendingNewNumber[ctx.from.id];
       }
       return showAdminPanel(ctx);
+    }
+
+    if (data === 'adm_hero_check') {
+      return showHeroDiagnostics(ctx);
     }
 
     // ---- RAQAMLAR BAZASI ----
