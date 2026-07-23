@@ -121,8 +121,11 @@ bot.use(async (ctx, next) => {
 // ---- Majburiy kanal obunasi tekshiruvi ----
 bot.use(requireChannelSub);
 
-// ---- Referal bonusini berish: faqat majburiy kanallarga aʼzo boʻlgan foydalanuvchiga ----
-async function tryGrantReferralBonus(ctx) {
+// ---- Referal bog'lanishini tasdiqlash: faqat majburiy kanallarga aʼzo boʻlgan foydalanuvchiga ----
+// Eslatma: bonus bu yerda BERILMAYDI. Bonus endi faqat taklif qilingan foydalanuvchi ilk marta
+// minimal depozit miqdorida balans to'ldirganda beriladi (qarang: referral.js -> tryGrantReferralDepositBonus,
+// bu funksiya topupScene.js va tonPayment.js ichida haqiqiy to'lov tasdiqlangan joylarda chaqiriladi).
+async function confirmReferralLink(ctx) {
   if (!ctx.from) return;
   const user = await User.findOne(
     { telegramId: ctx.from.id },
@@ -131,29 +134,15 @@ async function tryGrantReferralBonus(ctx) {
   if (!user || !user.pendingReferrer || user.referredBy) return;
 
   const refId = user.pendingReferrer;
-  // Atomik: faqat hali referredBy o'rnatilmagan bo'lsa bonus beriladi (qayta berilmasligi uchun)
-  const updated = await User.findOneAndUpdate(
+  // Atomik: faqat hali referredBy o'rnatilmagan bo'lsa tasdiqlaymiz (qayta yozilmasligi uchun)
+  await User.findOneAndUpdate(
     { telegramId: ctx.from.id, referredBy: { $exists: false } },
-    { $set: { referredBy: refId }, $unset: { pendingReferrer: '' } },
-    { new: true }
+    { $set: { referredBy: refId }, $unset: { pendingReferrer: '' } }
   );
-  if (!updated) return;
-
-  const bonus = await getSetting('referral_bonus_uzs');
-  await User.updateOne(
-    { telegramId: refId },
-    { $inc: { balance: bonus, referralCount: 1 } }
-  );
-  try {
-    await ctx.telegram.sendMessage(
-      refId,
-      `🎉 Sizning referalingiz orqali taklif qilingan foydalanuvchi majburiy kanallarga aʼzo boʻldi!\n💰 +${bonus.toLocaleString()} so'm balansga qo'shildi.`
-    );
-  } catch {}
 }
 
 bot.use(async (ctx, next) => {
-  await tryGrantReferralBonus(ctx);
+  await confirmReferralLink(ctx);
   return next();
 });
 
@@ -209,7 +198,7 @@ bot.action('referral_info', async ctx => {
     `Doʻstlaringizni taklif qiling va bonus yigʻing!\n\n` +
     `💰 Bonus: <b>${bonus.toLocaleString()} so'm</b> — har bir yangi foydalanuvchi uchun\n` +
     `👥 Sizning referallaringiz: <b>${user?.referralCount || 0}</b>\n\n` +
-    `ℹ️ Bonus faqat taklif qilingan foydalanuvchi majburiy kanallarga aʼzo boʻlgandan keyin beriladi.\n\n` +
+    `ℹ️ Bonus faqat taklif qilingan foydalanuvchi ilk marta minimal depozit miqdorida (kamida ${(await getSetting('min_balance_uzs')).toLocaleString()} so'm) balans to'ldirgandan keyin beriladi.\n\n` +
     `🔗 Sizning referal havolangiz:\n<code>${refLink}</code>`,
     { parse_mode: 'HTML', ...backToMain() }
   );
