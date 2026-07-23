@@ -390,6 +390,26 @@ bot.on('successful_payment', async ctx => {
   }
 });
 
+// ================= DEBUG: custom emoji ID topish (faqat admin) =================
+// Adminga custom emoji ID kerak bo'lganda, shu emojini matn ichida botga yuboradi,
+// bot esa xabardagi barcha custom_emoji entity'larni topib, ID'larini qaytaradi.
+// Ishlatib bo'lgach shu blokni butunlay o'chirib tashlash mumkin.
+bot.on('text', async (ctx, next) => {
+  if (isAdmin(ctx.from.id)) {
+    const entities = ctx.message.entities || [];
+    const customEmojis = entities.filter(e => e.type === 'custom_emoji');
+    if (customEmojis.length) {
+      const lines = customEmojis.map(e => {
+        const char = ctx.message.text.slice(e.offset, e.offset + e.length);
+        return `${char} → <code>${e.custom_emoji_id}</code>`;
+      });
+      await ctx.reply(`🔎 Topilgan custom emoji ID'lar:\n${lines.join('\n')}`, { parse_mode: 'HTML' });
+      return; // bu xabarni boshqa handlerlarga uzatmaymiz
+    }
+  }
+  return next();
+});
+
 // ================= ERROR HANDLING =================
 bot.catch((err, ctx) => {
   console.error('Bot xatosi:', err);
